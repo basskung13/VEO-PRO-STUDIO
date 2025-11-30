@@ -1,0 +1,5 @@
+{
+  "name": "Google website",
+  "description": "A helper tool to construct Veo prompts and manage daily quotas for the Gemini Web interface.",
+  "requestFramePermissions": []
+}
