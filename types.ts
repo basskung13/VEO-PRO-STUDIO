@@ -1,4 +1,5 @@
 
+
 export interface HistoryItem {
   id: string;
   originalPrompt: string;
@@ -109,11 +110,9 @@ export interface AIStudio {
   openSelectKey: () => Promise<void>;
 }
 
-declare global {
-  interface Window {
-    // Standard window properties
-    // Fix: Made 'aistudio' property optional to resolve potential duplicate declaration conflicts
-    // with external type definitions, while adhering to guidelines that it will be present at runtime.
-    aistudio?: AIStudio; // Declare aistudio property with the new interface
-  }
+// Fix: Made 'aistudio' property optional to resolve potential duplicate declaration conflicts
+// with external type definitions, while adhering to guidelines that it will be present at runtime.
+// Removed 'declare global' to resolve "Subsequent property declarations" error when types are identical.
+interface Window {
+  aistudio?: AIStudio; // Declare aistudio property with the new interface
 }
