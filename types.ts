@@ -1,5 +1,4 @@
 
-
 export interface HistoryItem {
   id: string;
   originalPrompt: string;
@@ -72,6 +71,7 @@ export interface Character {
   seed: string;
   visualDescriptionOverride?: string; // New field for detailed visual description
   dialogueExample?: string; // New field for example dialogue lines
+  imageUrl?: string; // New field for character image URL
   createdAt: number;
 }
 
@@ -103,8 +103,17 @@ export interface LoggedInUser {
   username: string;
 }
 
+// Define AIStudio interface to ensure consistent type declarations
+export interface AIStudio {
+  hasSelectedApiKey: () => Promise<boolean>;
+  openSelectKey: () => Promise<void>;
+}
+
 declare global {
   interface Window {
     // Standard window properties
+    // Fix: Made 'aistudio' property optional to resolve potential duplicate declaration conflicts
+    // with external type definitions, while adhering to guidelines that it will be present at runtime.
+    aistudio?: AIStudio; // Declare aistudio property with the new interface
   }
 }

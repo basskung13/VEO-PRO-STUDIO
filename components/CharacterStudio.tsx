@@ -1,7 +1,8 @@
 
 import React, { useState, useEffect } from 'react';
-import { Character, CharacterAttributes, CustomOption } from '../types';
-import { User, Save, Trash2, RefreshCw, Sparkles, Wand2, Palette, Smile, Shirt, Scissors, Dna, Crown, Sword, MessagesSquare, ChevronLeft, ChevronRight, Plus, Tag, Filter } from 'lucide-react';
+import { Character, CharacterAttributes, CustomOption, ApiKey } from '../types';
+import { generateCharacterImage } from '../services/geminiService'; // Import the new service function
+import { User, Save, Trash2, RefreshCw, Sparkles, Wand2, Palette, Smile, Shirt, Scissors, Dna, Crown, Sword, MessagesSquare, ChevronLeft, ChevronRight, Plus, Tag, Filter, Loader2, Download, X, AlertCircle, Key } from 'lucide-react'; // Added Loader2, Download, AlertCircle, Key
 
 interface CharacterStudioProps {
   characters: Character[];
@@ -11,6 +12,8 @@ interface CharacterStudioProps {
   customOptions: CustomOption[]; // New prop
   onAddCustomOption: (option: CustomOption) => void; // New prop
   onRemoveCustomOption: (id: string) => void; // New prop
+  activeApiKey: ApiKey | null; // Keep activeApiKey for UI display, but not for direct image API call
+  onOpenApiKeyManager: () => void; // New prop to open API key manager
 }
 
 // These are now purely for `defaultAttributes` initialization and constants (like GENDERS, AGES)
@@ -75,7 +78,7 @@ const ATTRIBUTE_PLACEHOLDER_MAP: { [K in keyof CharacterAttributes]: string } = 
 };
 
 
-const CharacterStudio: React.FC<CharacterStudioProps> = ({ characters, onSaveCharacter, onDeleteCharacter, onBack, customOptions, onAddCustomOption, onRemoveCustomOption }) => {
+const CharacterStudio: React.FC<CharacterStudioProps> = ({ characters, onSaveCharacter, onDeleteCharacter, onBack, customOptions, onAddCustomOption, onRemoveCustomOption, activeApiKey, onOpenApiKeyManager }) => {
   const [activeCharId, setActiveCharId] = useState<string | null>(null);
   const [isSidebarOpen, setIsSidebarOpen] = useState(true); // New state for sidebar visibility
   
@@ -85,6 +88,15 @@ const CharacterStudio: React.FC<CharacterStudioProps> = ({ characters, onSaveCha
   const [selectedManageCategory, setSelectedManageCategory] = useState<keyof CharacterAttributes>(
     CHARACTER_ATTRIBUTE_KEYS_FOR_CUSTOM_OPTIONS[0] // Default to the first category
   );
+
+  // New state for image generation
+  const [characterImageUrl, setCharacterImageUrl] = useState<string | null>(null);
+  const [isImageGenerating, setIsImageGenerating] = useState(false);
+  const [imageError, setImageError] = useState<string | null>(null);
+
+  // New state for aistudio API Key management
+  const [aistudioKeySelected, setAistudioKeySelected] = useState(false);
+  const [aistudioKeyCheckCompleted, setAistudioKeyCheckCompleted] = useState(false);
 
 
   const defaultAttributes: CharacterAttributes = {
@@ -124,6 +136,22 @@ const CharacterStudio: React.FC<CharacterStudioProps> = ({ characters, onSaveCha
     dialogueExample: '' // Initialize
   });
 
+  // --- Effect to check aistudio API Key status ---
+  useEffect(() => {
+    const checkAistudioKey = async () => {
+      if (window.aistudio && typeof window.aistudio.hasSelectedApiKey === 'function') {
+        const hasKey = await window.aistudio.hasSelectedApiKey();
+        setAistudioKeySelected(hasKey);
+        setAistudioKeyCheckCompleted(true);
+      } else {
+        console.warn("window.aistudio object or hasSelectedApiKey function not found.");
+        setAistudioKeyCheckCompleted(true); // Mark as completed even if aistudio is not available
+      }
+    };
+    checkAistudioKey();
+  }, []); // Run once on mount
+  // -----------------------------------------------
+
   // Load character into form
   useEffect(() => {
     if (activeCharId) {
@@ -137,6 +165,8 @@ const CharacterStudio: React.FC<CharacterStudioProps> = ({ characters, onSaveCha
           visualDescriptionOverride: char.visualDescriptionOverride || '', // Load override
           dialogueExample: char.dialogueExample || '' // Load dialogue example
         });
+        setCharacterImageUrl(char.imageUrl || null); // Load saved image URL
+        setImageError(null); // Clear any previous image errors
       }
     } else {
       // Clear form for new character
@@ -148,6 +178,8 @@ const CharacterStudio: React.FC<CharacterStudioProps> = ({ characters, onSaveCha
         visualDescriptionOverride: '', // Clear for new character
         dialogueExample: '' // Clear for new character
       });
+      setCharacterImageUrl(null); // Clear image for new character
+      setImageError(null); // Clear error for new character
     }
   }, [activeCharId, characters]);
 
@@ -210,20 +242,13 @@ const CharacterStudio: React.FC<CharacterStudioProps> = ({ characters, onSaveCha
       seed: form.seed,
       visualDescriptionOverride: form.visualDescriptionOverride.trim(), // Save override
       dialogueExample: form.dialogueExample.trim(), // Save dialogue example
-      createdAt: Date.now()
+      imageUrl: characterImageUrl || undefined, // Save current image URL
+      createdAt: activeCharId ? (characters.find(c => c.id === activeCharId)?.createdAt || Date.now()) : Date.now()
     };
 
     onSaveCharacter(newChar);
-    if (!activeCharId) { // If it was a new character, clear the form for another new one
-        setForm({
-            name: '',
-            nameEn: '',
-            seed: Math.random().toString(36).substring(7).toUpperCase(),
-            attr: { ...defaultAttributes },
-            visualDescriptionOverride: '',
-            dialogueExample: ''
-        });
-        setActiveCharId(null); // Ensure no character is actively selected after saving a new one
+    if (!activeCharId) { // If it was a new character, set activeCharId to the new one
+        setActiveCharId(newChar.id); 
     }
     alert("บันทึกตัวละครเรียบร้อย!");
   };
@@ -283,6 +308,8 @@ const CharacterStudio: React.FC<CharacterStudioProps> = ({ characters, onSaveCha
         hairTexture: randomItem(combinedHairTextures),
       }
     }));
+    setCharacterImageUrl(null); // Clear image on randomize
+    setImageError(null); // Clear error on randomize
   };
 
   const handleCreateNewCharacter = () => {
@@ -322,6 +349,62 @@ const CharacterStudio: React.FC<CharacterStudioProps> = ({ characters, onSaveCha
       .filter(opt => opt.attributeKey === key)
       .map(opt => opt.value);
   };
+
+  // New: Image generation handlers
+  const handleGenerateImage = async () => {
+    setIsImageGenerating(true);
+    setImageError(null);
+    setCharacterImageUrl(null); // Clear previous image
+
+    try {
+      // Step 1: Check and open aistudio API key selection if needed
+      if (window.aistudio && typeof window.aistudio.hasSelectedApiKey === 'function') {
+        const hasAistudioKey = await window.aistudio.hasSelectedApiKey();
+        if (!hasAistudioKey) {
+          alert("สำหรับ `gemini-3-pro-image-preview` คุณต้องเลือก API Key ที่ผูกกับการเรียกเก็บเงินแล้ว ผ่านหน้าต่าง 'ตั้งค่า API Key' ที่จะเปิดขึ้นมา");
+          await window.aistudio.openSelectKey();
+          // Assume success after openSelectKey() and proceed
+          setAistudioKeySelected(true); // Optimistically update state
+        }
+      } else {
+        setImageError("API Key selection (window.aistudio) is not available. Ensure your environment supports it.");
+        setIsImageGenerating(false);
+        return;
+      }
+      
+      const prompt = generateDescription(); // Use the existing generateDescription
+      const imageUrl = await generateCharacterImage(prompt); // service function now uses process.env.API_KEY
+      setCharacterImageUrl(imageUrl);
+    } catch (e: any) {
+      console.error("Error generating character image:", e);
+      setImageError(e.message || "ไม่สามารถสร้างภาพได้. โปรดตรวจสอบ API Key หรือลองอีกครั้ง.");
+      // Specific handling for "Requested entity was not found." as per guidelines
+      if (e.message && e.message.includes("Requested entity was not found.")) {
+        setAistudioKeySelected(false); // Reset AISTUDIO key selection state for a retry
+      }
+    } finally {
+      setIsImageGenerating(false);
+    }
+  };
+
+  const handleClearImage = () => {
+    setCharacterImageUrl(null);
+    setImageError(null);
+  };
+
+  const handleDownloadImage = () => {
+    if (characterImageUrl) {
+      const link = document.createElement('a');
+      link.href = characterImageUrl;
+      link.download = `${form.nameEn || 'character'}_${Date.now()}.png`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    }
+  };
+
+  // Determine if the "Generate Image" button should be interactable
+  const isGenerateImageButtonDisabled = isImageGenerating || (!aistudioKeyCheckCompleted);
 
   // Pre-fetch combined options for rendering
   const combinedGenders = getCombinedOptions('gender');
@@ -396,346 +479,500 @@ const CharacterStudio: React.FC<CharacterStudioProps> = ({ characters, onSaveCha
       {/* Main Form */}
       <div className="flex-1 bg-slate-900 border border-slate-700 rounded-xl overflow-hidden flex flex-col">
         <div className="p-4 bg-slate-950 border-b border-slate-800 flex justify-between items-center">
-             <h2 className="text-lg font-bold text-white flex items-center gap-2">
-                {activeCharId ? <User className="text-emerald-400"/> : <Sparkles className="text-emerald-400"/>}
-                {activeCharId ? 'แก้ไขตัวละคร' : 'สร้างตัวละครใหม่'}
-             </h2>
-             <div className="flex gap-2">
-                {activeCharId && ( // Only show 'Create New' button when an existing character is being edited
-                    <button 
-                        onClick={handleCreateNewCharacter} 
-                        className="bg-emerald-600 hover:bg-emerald-500 text-white p-1.5 rounded-lg transition-colors flex items-center gap-1"
-                        title="สร้างตัวละครใหม่"
-                    >
-                        <Plus size={14} />
-                        <span className="text-sm font-semibold">สร้างใหม่</span>
-                    </button>
+          <div className="flex items-center gap-3">
+            <h2 className="text-white text-lg font-bold">
+              {activeCharId ? `แก้ไขตัวละคร: ${form.name}` : "สร้างตัวละครใหม่"}
+            </h2>
+            <button 
+              onClick={handleCreateNewCharacter}
+              className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs rounded-lg flex items-center gap-2"
+              title="สร้างตัวละครเปล่า"
+            >
+              <Plus size={14}/> ใหม่
+            </button>
+          </div>
+          <div className="flex items-center gap-2">
+            <button 
+              onClick={handleSave}
+              className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-bold rounded-lg flex items-center gap-2"
+            >
+              <Save size={16}/> บันทึกตัวละคร
+            </button>
+            <button 
+              onClick={onBack}
+              className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-sm rounded-lg flex items-center gap-2"
+            >
+              <ChevronLeft size={16}/> ย้อนกลับ
+            </button>
+          </div>
+        </div>
+
+        <div className="flex-1 overflow-y-auto p-6 grid grid-cols-1 xl:grid-cols-2 gap-6">
+          {/* Left Panel: Character Attributes */}
+          <div className="space-y-6">
+            <div className="bg-slate-950/50 p-4 rounded-xl border border-slate-800 space-y-4">
+              <h3 className="text-emerald-400 font-bold uppercase text-xs tracking-wider flex items-center gap-2">
+                <Sparkles size={16}/> ภาพตัวละคร (Character Visual Preview)
+              </h3>
+              <div className="flex flex-col items-center gap-4">
+                <div className="w-full h-auto bg-slate-800 rounded-lg flex items-center justify-center p-4 min-h-[250px] relative overflow-hidden">
+                  {isImageGenerating && (
+                    <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/70 text-emerald-400 z-10 animate-pulse">
+                      <Loader2 size={36} className="animate-spin mb-2" />
+                      <p className="text-sm">กำลังสร้างภาพ...</p>
+                      <p className="text-xs text-slate-400 mt-1">อาจใช้เวลาสักครู่</p>
+                    </div>
+                  )}
+                  {imageError && (
+                    <div className="absolute inset-0 flex flex-col items-center justify-center bg-red-900/70 text-red-300 z-10 p-4 text-center">
+                      <AlertCircle size={36} className="mb-2" />
+                      <p className="text-sm font-bold">เกิดข้อผิดพลาด</p>
+                      <p className="text-xs">{imageError}</p>
+                      <a 
+                          href="https://ai.google.dev/gemini-api/docs/billing" 
+                          target="_blank" 
+                          rel="noopener noreferrer" 
+                          className="text-xs text-red-200 hover:underline mt-2"
+                      >
+                          ข้อมูลเพิ่มเติมเกี่ยวกับการเรียกเก็บเงิน
+                      </a>
+                    </div>
+                  )}
+                  {characterImageUrl ? (
+                    <>
+                      <img 
+                        src={characterImageUrl} 
+                        alt="Generated Character" 
+                        className="max-w-full max-h-full object-contain rounded-md"
+                      />
+                      <div className="absolute bottom-2 right-2 flex gap-2">
+                        <button 
+                          onClick={handleDownloadImage}
+                          className="p-2 bg-slate-700 hover:bg-slate-600 text-white rounded-full transition-colors"
+                          title="ดาวน์โหลดภาพ"
+                        >
+                          <Download size={16}/>
+                        </button>
+                        <button 
+                          onClick={handleClearImage}
+                          className="p-2 bg-slate-700 hover:bg-slate-600 text-white rounded-full transition-colors"
+                          title="ลบภาพ"
+                        >
+                          <X size={16}/>
+                        </button>
+                      </div>
+                    </>
+                  ) : (
+                    <p className="text-slate-500 text-sm">ไม่มีภาพพรีวิว (คลิก 'สร้างภาพตัวละคร')</p>
+                  )}
+                </div>
+                {!aistudioKeyCheckCompleted && (
+                  <div className="text-center p-2 bg-slate-800 rounded-lg text-amber-400 text-xs flex items-center gap-2">
+                    <Loader2 size={12} className="animate-spin"/>
+                    กำลังตรวจสอบสถานะ API Key สำหรับสร้างภาพ...
+                  </div>
                 )}
-                <button 
-                    onClick={handleRandomize}
-                    className="flex items-center gap-2 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-sm border border-slate-700"
+                <button
+                  onClick={handleGenerateImage}
+                  disabled={isGenerateImageButtonDisabled}
+                  className={`w-full py-3 rounded-lg font-bold text-sm flex items-center justify-center gap-2 transition-all ${
+                    isGenerateImageButtonDisabled
+                      ? 'bg-slate-800 text-slate-500 cursor-not-allowed'
+                      : 'bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white shadow-lg shadow-emerald-900/20'
+                  }`}
                 >
-                    <Wand2 size={14} /> สุ่มลักษณะ (Randomize)
+                  {isImageGenerating ? (
+                    <>
+                      <Loader2 size={16} className="animate-spin"/> กำลังสร้างภาพ...
+                    </>
+                  ) : (
+                    <>
+                      <Wand2 size={16}/> สร้างภาพตัวละคร (Generate Image)
+                    </>
+                  )}
                 </button>
-             </div>
-        </div>
+                {aistudioKeyCheckCompleted && !aistudioKeySelected && !isImageGenerating && (
+                  <button 
+                    onClick={onOpenApiKeyManager}
+                    className="text-xs text-center text-amber-500 cursor-pointer hover:underline flex items-center gap-1"
+                  >
+                    <Key size={12} />
+                    <AlertCircle size={12} className="inline mr-1"/>
+                    สำหรับ `gemini-3-pro-image-preview` ต้องเลือก API Key ที่มีการเรียกเก็บเงิน
+                  </button>
+                )}
+              </div>
+            </div>
 
-        <div className="flex-1 overflow-y-auto p-6 space-y-8">
+            <div className="bg-slate-950/50 p-4 rounded-xl border border-slate-800 space-y-4">
+              <h3 className="text-slate-300 font-bold uppercase text-xs tracking-wider flex items-center gap-2">
+                <Dna size={16}/> ข้อมูลพื้นฐาน (Basics)
+              </h3>
+              <div>
+                <label className="block text-slate-400 text-xs font-semibold mb-1">ชื่อตัวละคร (ไทย)</label>
+                <input 
+                  type="text" 
+                  value={form.name} 
+                  onChange={e => setForm(prev => ({ ...prev, name: e.target.value }))}
+                  placeholder="ชื่อตัวละคร"
+                  className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm focus:border-emerald-500 outline-none"
+                />
+              </div>
+              <div>
+                <label className="block text-slate-400 text-xs font-semibold mb-1">ชื่อตัวละคร (อังกฤษ)</label>
+                <input 
+                  type="text" 
+                  value={form.nameEn} 
+                  onChange={e => setForm(prev => ({ ...prev, nameEn: e.target.value }))}
+                  placeholder="Character Name (English)"
+                  className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm focus:border-emerald-500 outline-none"
+                />
+              </div>
+              <div>
+                <label className="block text-slate-400 text-xs font-semibold mb-1">Seed (เพื่อสุ่มซ้ำ)</label>
+                <input 
+                  type="text" 
+                  value={form.seed} 
+                  readOnly
+                  className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-slate-400 text-sm font-mono outline-none cursor-not-allowed"
+                />
+              </div>
+              <div>
+                <label className="block text-slate-400 text-xs font-semibold mb-1">รายละเอียดภาพ (Visual Description Override)</label>
+                <textarea 
+                  value={form.visualDescriptionOverride} 
+                  onChange={e => setForm(prev => ({ ...prev, visualDescriptionOverride: e.target.value }))}
+                  placeholder="หากต้องการเขียนรายละเอียดภาพเองทั้งหมด (ระบบจะใช้ข้อความนี้แทนการสร้างอัตโนมัติ)"
+                  className="w-full h-20 bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm focus:border-emerald-500 outline-none resize-none"
+                />
+              </div>
+              <div>
+                <label className="block text-slate-400 text-xs font-semibold mb-1">บทพูดตัวอย่าง (Dialogue Example)</label>
+                <textarea 
+                  value={form.dialogueExample} 
+                  onChange={e => setForm(prev => ({ ...prev, dialogueExample: e.target.value }))}
+                  placeholder="เช่น 'โลกนี้มันช่างน่าเบื่อจริงๆ...'"
+                  className="w-full h-20 bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm focus:border-emerald-500 outline-none resize-none"
+                />
+              </div>
+              <button 
+                onClick={handleRandomize}
+                className="w-full py-3 bg-slate-800 hover:bg-slate-700 text-white text-sm font-bold rounded-lg flex items-center justify-center gap-2"
+              >
+                <RefreshCw size={16}/> สุ่มคุณลักษณะทั้งหมด
+              </button>
+            </div>
+
+            <div className="bg-slate-950/50 p-4 rounded-xl border border-slate-800">
+              <h3 className="text-slate-300 font-bold uppercase text-xs tracking-wider flex items-center gap-2 mb-4">
+                <Filter size={16}/> จัดการตัวเลือกเอง (Custom Options)
+              </h3>
+              <div className="mb-4">
+                <label className="block text-slate-400 text-xs font-semibold mb-1">เลือกหมวดหมู่</label>
+                <select 
+                  value={selectedManageCategory}
+                  onChange={(e) => setSelectedManageCategory(e.target.value as keyof CharacterAttributes)}
+                  className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm focus:border-emerald-500 outline-none"
+                >
+                  {CHARACTER_ATTRIBUTE_KEYS_FOR_CUSTOM_OPTIONS.map(key => (
+                    <option key={key} value={key}>{ATTRIBUTE_CATEGORIES_MAP[key]}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="flex gap-2 mb-4">
+                <input 
+                  type="text" 
+                  value={newCustomOptionValue}
+                  onChange={e => setNewCustomOptionValue(e.target.value)}
+                  placeholder={ATTRIBUTE_PLACEHOLDER_MAP[selectedManageCategory] || "เพิ่มตัวเลือกใหม่..."}
+                  className="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm focus:border-emerald-500 outline-none"
+                />
+                <button 
+                  onClick={handleAddCustomOptionClick}
+                  className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-bold rounded-lg flex items-center gap-2"
+                >
+                  <Plus size={16}/> เพิ่ม
+                </button>
+              </div>
+              <div className="max-h-40 overflow-y-auto pr-2 space-y-2">
+                {customOptions.filter(opt => opt.attributeKey === selectedManageCategory).map(opt => (
+                  <div key={opt.id} className="flex justify-between items-center bg-slate-900 border border-slate-800 rounded-lg px-3 py-2">
+                    <span className="text-slate-300 text-sm">{opt.value}</span>
+                    <button 
+                      onClick={() => onRemoveCustomOption(opt.id)}
+                      className="text-slate-500 hover:text-red-400 p-1"
+                    >
+                      <Trash2 size={14}/>
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* Right Panel: Detailed Attributes */}
+          <div className="space-y-6">
+            <div className="bg-slate-950/50 p-4 rounded-xl border border-slate-800 space-y-4">
+              <h3 className="text-slate-300 font-bold uppercase text-xs tracking-wider flex items-center gap-2">
+                <Palette size={16}/> รูปลักษณ์ (Appearance)
+              </h3>
+              
+              {/* Gender */}
+              <div>
+                <label className="block text-slate-400 text-xs font-semibold mb-1">เพศ (Gender)</label>
+                <select 
+                  value={form.attr.gender} 
+                  onChange={e => setForm(prev => ({ ...prev, attr: { ...prev.attr, gender: e.target.value } }))}
+                  className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm focus:border-emerald-500 outline-none"
+                >
+                  {combinedGenders.map(option => <option key={option} value={option}>{option}</option>)}
+                </select>
+              </div>
+
+              {/* Age Group */}
+              <div>
+                <label className="block text-slate-400 text-xs font-semibold mb-1">กลุ่มอายุ (Age Group)</label>
+                <select 
+                  value={form.attr.ageGroup} 
+                  onChange={e => setForm(prev => ({ ...prev, attr: { ...prev.attr, ageGroup: e.target.value } }))}
+                  className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm focus:border-emerald-500 outline-none"
+                >
+                  {combinedAgeGroups.map(option => <option key={option} value={option}>{option}</option>)}
+                </select>
+              </div>
+
+              {/* Skin Tone */}
+              <div>
+                <label className="block text-slate-400 text-xs font-semibold mb-1">สีผิว (Skin Tone)</label>
+                <select 
+                  value={form.attr.skinTone} 
+                  onChange={e => setForm(prev => ({ ...prev, attr: { ...prev.attr, skinTone: e.target.value } }))}
+                  className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm focus:border-emerald-500 outline-none"
+                >
+                  {combinedSkinTones.map(option => <option key={option} value={option}>{option}</option>)}
+                </select>
+              </div>
+              
+              {/* Face Shape */}
+              <div>
+                <label className="block text-slate-400 text-xs font-semibold mb-1">รูปหน้า (Face Shape)</label>
+                <select 
+                  value={form.attr.faceShape} 
+                  onChange={e => setForm(prev => ({ ...prev, attr: { ...prev.attr, faceShape: e.target.value } }))}
+                  className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm focus:border-emerald-500 outline-none"
+                >
+                  {combinedFaceShapes.map(option => <option key={option} value={option}>{option}</option>)}
+                </select>
+              </div>
+
+              {/* Eye Shape */}
+              <div>
+                <label className="block text-slate-400 text-xs font-semibold mb-1">รูปร่างตา (Eye Shape)</label>
+                <select 
+                  value={form.attr.eyeShape} 
+                  onChange={e => setForm(prev => ({ ...prev, attr: { ...prev.attr, eyeShape: e.target.value } }))}
+                  className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm focus:border-emerald-500 outline-none"
+                >
+                  {combinedEyeShapes.map(option => <option key={option} value={option}>{option}</option>)}
+                </select>
+              </div>
+
+              {/* Eye Color */}
+              <div>
+                <label className="block text-slate-400 text-xs font-semibold mb-1">สีตา (Eye Color)</label>
+                <select 
+                  value={form.attr.eyeColor} 
+                  onChange={e => setForm(prev => ({ ...prev, attr: { ...prev.attr, eyeColor: e.target.value } }))}
+                  className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm focus:border-emerald-500 outline-none"
+                >
+                  {combinedEyeColors.map(option => <option key={option} value={option}>{option}</option>)}
+                </select>
+              </div>
+
+              {/* Hair Style */}
+              <div>
+                <label className="block text-slate-400 text-xs font-semibold mb-1">ทรงผม (Hair Style)</label>
+                <select 
+                  value={form.attr.hairStyle} 
+                  onChange={e => setForm(prev => ({ ...prev, attr: { ...prev.attr, hairStyle: e.target.value } }))}
+                  className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm focus:border-emerald-500 outline-none"
+                >
+                  {combinedHairStyles.map(option => <option key={option} value={option}>{option}</option>)}
+                </select>
+              </div>
+
+              {/* Hair Color */}
+              <div>
+                <label className="block text-slate-400 text-xs font-semibold mb-1">สีผม (Hair Color)</label>
+                <select 
+                  value={form.attr.hairColor} 
+                  onChange={e => setForm(prev => ({ ...prev, attr: { ...prev.attr, hairColor: e.target.value } }))}
+                  className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm focus:border-emerald-500 outline-none"
+                >
+                  {combinedHairColors.map(option => <option key={option} value={option}>{option}</option>)}
+                </select>
+              </div>
+
+              {/* Hair Texture */}
+              <div>
+                <label className="block text-slate-400 text-xs font-semibold mb-1">ลักษณะเส้นผม (Hair Texture)</label>
+                <select 
+                  value={form.attr.hairTexture} 
+                  onChange={e => setForm(prev => ({ ...prev, attr: { ...prev.attr, hairTexture: e.target.value } }))}
+                  className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm focus:border-emerald-500 outline-none"
+                >
+                  {combinedHairTextures.map(option => <option key={option} value={option}>{option}</option>)}
+                </select>
+              </div>
+
+              {/* Facial Features (Tags) */}
+              <div>
+                <label className="block text-slate-400 text-xs font-semibold mb-1">จุดเด่นบนใบหน้า (Facial Features)</label>
+                <div className="flex flex-wrap gap-2">
+                  {combinedFacialFeatures.map(option => (
+                    <span 
+                      key={option} 
+                      onClick={() => toggleTag('facialFeatures', option)}
+                      className={`cursor-pointer px-3 py-1 text-xs rounded-full border transition-all ${
+                        form.attr.facialFeatures.includes(option) 
+                          ? 'bg-emerald-900/50 border-emerald-500 text-emerald-100' 
+                          : 'bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-700'
+                      }`}
+                    >
+                      {option}
+                    </span>
+                  ))}
+                </div>
+              </div>
+
+              {/* Body Type */}
+              <div>
+                <label className="block text-slate-400 text-xs font-semibold mb-1">รูปร่าง (Body Type)</label>
+                <select 
+                  value={form.attr.bodyType} 
+                  onChange={e => setForm(prev => ({ ...prev, attr: { ...prev.attr, bodyType: e.target.value } }))}
+                  className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm focus:border-emerald-500 outline-none"
+                >
+                  {combinedBodyTypes.map(option => <option key={option} value={option}>{option}</option>)}
+                </select>
+              </div>
+            </div>
+
+            <div className="bg-slate-950/50 p-4 rounded-xl border border-slate-800 space-y-4">
+              <h3 className="text-slate-300 font-bold uppercase text-xs tracking-wider flex items-center gap-2">
+                <Shirt size={16}/> เครื่องแต่งกาย & ของใช้ (Attire & Items)
+              </h3>
+              
+              {/* Clothing Style */}
+              <div>
+                <label className="block text-slate-400 text-xs font-semibold mb-1">สไตล์ชุด (Clothing Style)</label>
+                <select 
+                  value={form.attr.clothingStyle} 
+                  onChange={e => setForm(prev => ({ ...prev, attr: { ...prev.attr, clothingStyle: e.target.value } }))}
+                  className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm focus:border-emerald-500 outline-none"
+                >
+                  {combinedClothingStyles.map(option => <option key={option} value={option}>{option}</option>)}
+                </select>
+              </div>
+
+              {/* Clothing Color */}
+              <div>
+                <label className="block text-slate-400 text-xs font-semibold mb-1">สีชุด (Color)</label>
+                <select 
+                  value={form.attr.clothingColor} 
+                  onChange={e => setForm(prev => ({ ...prev, attr: { ...prev.attr, clothingColor: e.target.value } }))}
+                  className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm focus:border-emerald-500 outline-none"
+                >
+                  <option value="">(ไม่ระบุ)</option>
+                  {combinedClothingColors.map(option => <option key={option} value={option}>{option}</option>)}
+                </select>
+              </div>
+
+              {/* Clothing Detail */}
+              <div>
+                <label className="block text-slate-400 text-xs font-semibold mb-1">รายละเอียดชุด (Detail)</label>
+                <select 
+                  value={form.attr.clothingDetail} 
+                  onChange={e => setForm(prev => ({ ...prev, attr: { ...prev.attr, clothingDetail: e.target.value } }))}
+                  className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm focus:border-emerald-500 outline-none"
+                >
+                  <option value="">(ไม่ระบุ)</option>
+                  {combinedClothingDetails.map(option => <option key={option} value={option}>{option}</option>)}
+                </select>
+              </div>
+
+              {/* Accessories (Tags) */}
+              <div>
+                <label className="block text-slate-400 text-xs font-semibold mb-1">เครื่องประดับ (Accessories)</label>
+                <div className="flex flex-wrap gap-2">
+                  {combinedAccessories.map(option => (
+                    <span 
+                      key={option} 
+                      onClick={() => toggleTag('accessories', option)}
+                      className={`cursor-pointer px-3 py-1 text-xs rounded-full border transition-all ${
+                        form.attr.accessories.includes(option) 
+                          ? 'bg-emerald-900/50 border-emerald-500 text-emerald-100' 
+                          : 'bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-700'
+                      }`}
+                    >
+                      {option}
+                    </span>
+                  ))}
+                </div>
+              </div>
+
+              {/* Weapons (Tags) */}
+              <div>
+                <label className="block text-slate-400 text-xs font-semibold mb-1">อาวุธ/ของถือ (Weapons)</label>
+                <div className="flex flex-wrap gap-2">
+                  {combinedWeapons.map(option => (
+                    <span 
+                      key={option} 
+                      onClick={() => toggleTag('weapons', option)}
+                      className={`cursor-pointer px-3 py-1 text-xs rounded-full border transition-all ${
+                        form.attr.weapons.includes(option) 
+                          ? 'bg-emerald-900/50 border-emerald-500 text-emerald-100' 
+                          : 'bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-700'
+                      }`}
+                    >
+                      {option}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            </div>
             
-            {/* 0. Character Name */}
-            <div className="space-y-4">
-                <div className="flex items-center gap-2 text-white border-b border-slate-800 pb-2">
-                    <Tag size={18} />
-                    <h3 className="font-bold">ชื่อตัวละคร (Character Name)</h3>
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="space-y-1">
-                        <label className="text-xs text-slate-500 block mb-1">ชื่อตัวละคร (ไทย)</label>
-                        <input 
-                            value={form.name} onChange={e => setForm(p => ({...p, name: e.target.value}))}
-                            placeholder="ชื่อตัวละคร (ไทย)" className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-white outline-none focus:border-emerald-500 transition-colors"
-                        />
-                    </div>
-                    <div className="space-y-1">
-                        <label className="text-xs text-slate-500 block mb-1">Character Name (English)</label>
-                        <input 
-                            value={form.nameEn} onChange={e => setForm(p => ({...p, nameEn: e.target.value}))}
-                            placeholder="Character Name (English)" className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-white outline-none focus:border-emerald-500 transition-colors"
-                        />
-                    </div>
-                </div>
+            <div className="bg-slate-950/50 p-4 rounded-xl border border-slate-800 space-y-4">
+              <h3 className="text-slate-300 font-bold uppercase text-xs tracking-wider flex items-center gap-2">
+                <Smile size={16}/> อุปนิสัย & อารมณ์ (Personality & Mood)
+              </h3>
+              
+              {/* Personality */}
+              <div>
+                <label className="block text-slate-400 text-xs font-semibold mb-1">บุคลิกภาพ (Personality)</label>
+                <select 
+                  value={form.attr.personality} 
+                  onChange={e => setForm(prev => ({ ...prev, attr: { ...prev.attr, personality: e.target.value } }))}
+                  className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm focus:border-emerald-500 outline-none"
+                >
+                  {combinedPersonalities.map(option => <option key={option} value={option}>{option}</option>)}
+                </select>
+              </div>
+
+              {/* Current Mood */}
+              <div>
+                <label className="block text-slate-400 text-xs font-semibold mb-1">อารมณ์ปัจจุบัน (Current Mood)</label>
+                <select 
+                  value={form.attr.currentMood} 
+                  onChange={e => setForm(prev => ({ ...prev, attr: { ...prev.attr, currentMood: e.target.value } }))}
+                  className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm focus:border-emerald-500 outline-none"
+                >
+                  {combinedMoods.map(option => <option key={option} value={option}>{option}</option>)}
+                </select>
+              </div>
             </div>
 
-            {/* 1. Basics */}
-            <div className="space-y-4">
-                <div className="flex items-center gap-2 text-emerald-400 border-b border-slate-800 pb-2">
-                    <User size={18} />
-                    <h3 className="font-bold">ข้อมูลพื้นฐาน (Basics)</h3>
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <select value={form.attr.gender} onChange={e => setForm(p => ({...p, attr: {...p.attr, gender: e.target.value}}))} className="bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-white outline-none focus:border-emerald-500 transition-colors">
-                        {combinedGenders.map(o => <option key={o} value={o}>{o}</option>)}
-                    </select>
-                    <select value={form.attr.ageGroup} onChange={e => setForm(p => ({...p, attr: {...p.attr, ageGroup: e.target.value}}))} className="bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-white outline-none focus:border-emerald-500 transition-colors">
-                        {combinedAgeGroups.map(o => <option key={o} value={o}>{o}</option>)}
-                    </select>
-                    <select value={form.attr.skinTone} onChange={e => setForm(p => ({...p, attr: {...p.attr, skinTone: e.target.value}}))} className="bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-white outline-none focus:border-emerald-500 transition-colors">
-                        {combinedSkinTones.map(o => <option key={o} value={o}>{o}</option>)}
-                    </select>
-                    <select value={form.attr.bodyType} onChange={e => setForm(p => ({...p, attr: {...p.attr, bodyType: e.target.value}}))} className="bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-white outline-none focus:border-emerald-500 transition-colors">
-                        {combinedBodyTypes.map(o => <option key={o} value={o}>{o}</option>)}
-                    </select>
-                </div>
-                
-                {/* Visual Description Override */}
-                <div className="space-y-1">
-                    <label className="text-xs text-slate-500 block mb-1">คำบรรยายลักษณะตัวละครโดยละเอียด (Override)</label>
-                    <textarea
-                        value={form.visualDescriptionOverride}
-                        onChange={e => setForm(p => ({ ...p, visualDescriptionOverride: e.target.value }))}
-                        placeholder="เช่น 'ตัวละครนี้มีรอยแผลเป็นรูปมังกรที่แก้มซ้าย, สวมชุดเกราะสีดำขลับที่สลักด้วยอักษรรูนเรืองแสงสีฟ้าอ่อน, ถือดาบยาวที่มีออร่าสีม่วง.'"
-                        className="w-full h-24 bg-slate-950 border border-slate-700 rounded-lg p-3 text-white text-sm focus:border-emerald-500 outline-none resize-none"
-                    />
-                    <p className="text-[10px] text-slate-600 mt-1">หากมีข้อมูลในช่องนี้ ระบบจะใช้คำบรรยายนี้เป็นหลักแทนการสร้างจากตัวเลือกด้านล่าง</p>
-                </div>
-            </div>
-
-            {/* 2. Face & Hair */}
-            <div className="space-y-4">
-                <div className="flex items-center gap-2 text-emerald-400 border-b border-slate-800 pb-2">
-                    <Dna size={18} />
-                    <h3 className="font-bold">หน้าตา & ทรงผม (Face & Hair)</h3>
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <select value={form.attr.faceShape} onChange={e => setForm(p => ({...p, attr: {...p.attr, faceShape: e.target.value}}))} className="bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-white outline-none focus:border-emerald-500 transition-colors">
-                        {combinedFaceShapes.map(o => <option key={o} value={o}>{o}</option>)}
-                    </select>
-                    <select value={form.attr.eyeShape} onChange={e => setForm(p => ({...p.attr, attr: {...p.attr, eyeShape: e.target.value}}))} className="bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-white outline-none focus:border-emerald-500 transition-colors">
-                        {combinedEyeShapes.map(o => <option key={o} value={o}>{o}</option>)}
-                    </select>
-                    <select value={form.attr.eyeColor} onChange={e => setForm(p => ({...p.attr, attr: {...p.attr, eyeColor: e.target.value}}))} className="bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-white outline-none focus:border-emerald-500 transition-colors">
-                        {combinedEyeColors.map(o => <option key={o} value={o}>{o}</option>)}
-                    </select>
-                    <select value={form.attr.hairStyle} onChange={e => setForm(p => ({...p.attr, attr: {...p.attr, hairStyle: e.target.value}}))} className="bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-white outline-none focus:border-emerald-500 transition-colors">
-                        {combinedHairStyles.map(o => <option key={o} value={o}>{o}</option>)}
-                    </select>
-                    <select value={form.attr.hairColor} onChange={e => setForm(p => ({...p.attr, attr: {...p.attr, hairColor: e.target.value}}))} className="bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-white outline-none focus:border-emerald-500 transition-colors">
-                        {combinedHairColors.map(o => <option key={o} value={o}>{o}</option>)}
-                    </select>
-                    <select value={form.attr.hairTexture} onChange={e => setForm(p => ({...p.attr, attr: {...p.attr, hairTexture: e.target.value}}))} className="bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-white outline-none focus:border-emerald-500 transition-colors">
-                        {combinedHairTextures.map(o => <option key={o} value={o}>{o}</option>)}
-                    </select>
-                </div>
-                <div className="space-y-2">
-                    <label className="text-xs text-slate-500 block mb-1">จุดเด่นบนใบหน้า (Facial Features)</label>
-                    <div className="flex flex-wrap gap-2">
-                        {combinedFacialFeatures.map(feature => (
-                            <button
-                                key={feature}
-                                onClick={() => toggleTag('facialFeatures', feature)}
-                                className={`px-4 py-2 rounded-full text-sm transition-all ${
-                                    form.attr.facialFeatures.includes(feature) 
-                                    ? 'bg-emerald-600 text-white' 
-                                    : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
-                                }`}
-                            >
-                                {feature}
-                            </button>
-                        ))}
-                    </div>
-                </div>
-            </div>
-
-            {/* 3. Clothing */}
-            <div className="space-y-4">
-                <div className="flex items-center gap-2 text-emerald-400 border-b border-slate-800 pb-2">
-                    <Shirt size={18} />
-                    <h3 className="font-bold">เสื้อผ้า (Clothing)</h3>
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <select value={form.attr.clothingStyle} onChange={e => setForm(p => ({...p, attr: {...p.attr, clothingStyle: e.target.value}}))} className="bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-white outline-none focus:border-emerald-500 transition-colors">
-                        {combinedClothingStyles.map(o => <option key={o} value={o}>{o}</option>)}
-                    </select>
-                    <select value={form.attr.clothingColor} onChange={e => setForm(p => ({...p.attr, attr: {...p.attr, clothingColor: e.target.value}}))} className="bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-white outline-none focus:border-emerald-500 transition-colors">
-                        {combinedClothingColors.map(o => <option key={o} value={o}>{o}</option>)}
-                    </select>
-                </div>
-                <div className="space-y-1">
-                    <label className="text-xs text-slate-500 block mb-1">รายละเอียดชุด (Detail)</label>
-                    <select value={form.attr.clothingDetail} onChange={e => setForm(p => ({...p.attr, attr: {...p.attr, clothingDetail: e.target.value}}))} className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-white outline-none focus:border-emerald-500 transition-colors">
-                        <option value="">ไม่มี</option>
-                        {combinedClothingDetails.map(o => <option key={o} value={o}>{o}</option>)}
-                    </select>
-                </div>
-            </div>
-
-            {/* 4. Accessories */}
-            <div className="space-y-4">
-                <div className="flex items-center gap-2 text-emerald-400 border-b border-slate-800 pb-2">
-                    <Crown size={18} />
-                    <h3 className="font-bold">เครื่องประดับ (Accessories)</h3>
-                </div>
-                <div className="flex flex-wrap gap-2">
-                    {combinedAccessories.map(accessory => (
-                        <button
-                            key={accessory}
-                            onClick={() => toggleTag('accessories', accessory)}
-                            className={`px-4 py-2 rounded-full text-sm transition-all ${
-                                form.attr.accessories.includes(accessory) 
-                                ? 'bg-emerald-600 text-white' 
-                                : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
-                            }`}
-                        >
-                            {accessory}
-                        </button>
-                    ))}
-                </div>
-            </div>
-
-            {/* 5. Weapons */}
-            <div className="space-y-4">
-                <div className="flex items-center gap-2 text-emerald-400 border-b border-slate-800 pb-2">
-                    <Sword size={18} />
-                    <h3 className="font-bold">อาวุธ/ของถือ (Weapons)</h3>
-                </div>
-                <div className="flex flex-wrap gap-2">
-                    {combinedWeapons.map(weapon => (
-                        <button
-                            key={weapon}
-                            onClick={() => toggleTag('weapons', weapon)}
-                            className={`px-4 py-2 rounded-full text-sm transition-all ${
-                                form.attr.weapons.includes(weapon) 
-                                ? 'bg-emerald-600 text-white' 
-                                : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
-                            }`}
-                        >
-                            {weapon}
-                        </button>
-                    ))}
-                </div>
-            </div>
-
-            {/* 6. Personality & Dialogue */}
-            <div className="space-y-4">
-                <div className="flex items-center gap-2 text-emerald-400 border-b border-slate-800 pb-2">
-                    <MessagesSquare size={18} />
-                    <h3 className="font-bold">บุคลิกภาพ & บทพูด (Personality & Dialogue)</h3>
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <select value={form.attr.personality} onChange={e => setForm(p => ({...p, attr: {...p.attr, personality: e.target.value}}))} className="bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-white outline-none focus:border-emerald-500 transition-colors">
-                        {combinedPersonalities.map(o => <option key={o} value={o}>{o}</option>)}
-                    </select>
-                    <select value={form.attr.currentMood} onChange={e => setForm(p => ({...p.attr, attr: {...p.attr, currentMood: e.target.value}}))} className="bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-white outline-none focus:border-emerald-500 transition-colors">
-                        {combinedMoods.map(o => <option key={o} value={o}>{o}</option>)}
-                    </select>
-                </div>
-                <div className="space-y-1">
-                    <label className="text-xs text-slate-500 block mb-1">ตัวอย่างบทพูด (Dialogue Example)</label>
-                    <textarea
-                        value={form.dialogueExample}
-                        onChange={e => setForm(p => ({ ...p, dialogueExample: e.target.value }))}
-                        placeholder="เช่น 'ข้าจะแสดงให้เจ้าเห็นถึงพลังที่แท้จริง!' หรือ 'วันนี้อากาศดีจังเลยเนอะ?'"
-                        className="w-full h-24 bg-slate-950 border border-slate-700 rounded-lg p-3 text-white text-sm focus:border-emerald-500 outline-none resize-none"
-                    />
-                    <p className="text-[10px] text-slate-600 mt-1">บทพูดตัวอย่างที่สะท้อนบุคลิกภาพของตัวละคร (ใช้ AI สร้างเสียงเมื่อสร้างวิดีโอ)</p>
-                </div>
-            </div>
-
-
-            {/* 7. Character Seed */}
-            <div className="space-y-4">
-                <div className="flex items-center gap-2 text-emerald-400 border-b border-slate-800 pb-2">
-                    <Sparkles size={18} />
-                    <h3 className="font-bold">CHARACTER SEED</h3>
-                </div>
-                <div className="space-y-1">
-                    <label className="text-xs text-slate-500 block mb-1">Seed (ใช้สำหรับสร้างภาพตัวละคร)</label>
-                    <input 
-                        value={form.seed} 
-                        onChange={e => setForm(p => ({...p, seed: e.target.value}))}
-                        className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-white outline-none focus:border-emerald-500 transition-colors font-mono"
-                        placeholder="Automatic seed"
-                    />
-                </div>
-            </div>
-
-            {/* 8. Attribute Options Management */}
-            <div className="space-y-4">
-                <div className="flex items-center gap-2 text-emerald-400 border-b border-slate-800 pb-2">
-                    <Filter size={18} />
-                    <h3 className="font-bold">เลือกหมวดหมู่เพื่อเพิ่ม/จัดการตัวเลือก</h3>
-                </div>
-
-                <div className="space-y-3 bg-slate-950/50 p-4 rounded-xl border border-slate-800">
-                    <div className="space-y-1">
-                        <label className="text-xs text-slate-500 block mb-1">เลือกหมวดหมู่</label>
-                        <select
-                            value={selectedManageCategory}
-                            onChange={e => setSelectedManageCategory(e.target.value as keyof CharacterAttributes)}
-                            className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-white outline-none focus:border-emerald-500 transition-colors"
-                        >
-                            {CHARACTER_ATTRIBUTE_KEYS_FOR_CUSTOM_OPTIONS.map(key => (
-                                <option key={key} value={key}>
-                                    {ATTRIBUTE_CATEGORIES_MAP[key]}
-                                </option>
-                            ))}
-                        </select>
-                    </div>
-
-                    <div className="space-y-1">
-                        <label className="text-xs text-slate-500 block mb-1">เพิ่มตัวเลือกใหม่</label>
-                        <div className="flex gap-2">
-                            <input
-                                type="text"
-                                value={newCustomOptionValue}
-                                onChange={e => setNewCustomOptionValue(e.target.value)}
-                                placeholder={ATTRIBUTE_PLACEHOLDER_MAP[selectedManageCategory] || "เพิ่มตัวเลือกใหม่..."}
-                                className="flex-1 bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-white outline-none focus:border-emerald-500 transition-colors"
-                            />
-                            <button
-                                onClick={handleAddCustomOptionClick}
-                                className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg flex items-center gap-2 text-sm font-semibold transition-colors"
-                                title="เพิ่มตัวเลือกที่กำหนดเอง"
-                            >
-                                <Plus size={16} />
-                            </button>
-                        </div>
-                    </div>
-
-                    {/* Display filtered custom options */}
-                    <div className="pt-4 border-t border-slate-800 mt-4 space-y-2 max-h-60 overflow-y-auto pr-2">
-                        {customOptions.filter(opt => opt.attributeKey === selectedManageCategory).length === 0 ? (
-                            <p className="text-slate-500 text-sm italic text-center py-4">
-                                ยังไม่มีตัวเลือกที่กำหนดเองสำหรับ '{ATTRIBUTE_CATEGORIES_MAP[selectedManageCategory]}'
-                            </p>
-                        ) : (
-                            customOptions
-                                .filter(opt => opt.attributeKey === selectedManageCategory)
-                                .map(opt => (
-                                    <div 
-                                        key={opt.id} 
-                                        className="bg-slate-900 border border-slate-700 rounded-lg p-3 flex justify-between items-center group"
-                                    >
-                                        <span className="text-slate-300 text-sm flex-1 truncate">{opt.value}</span>
-                                        <div className="flex gap-1 items-center ml-2 shrink-0">
-                                            <button
-                                                onClick={() => setNewCustomOptionValue(opt.value)} // Populate input with current value
-                                                className="p-1 text-slate-600 hover:text-emerald-400 hover:bg-slate-800 rounded-md transition-colors"
-                                                title="นำค่านี้ไปแก้ไข"
-                                            >
-                                                <Plus size={14} />
-                                            </button>
-                                            <button
-                                                onClick={() => onRemoveCustomOption(opt.id)}
-                                                className="p-1 text-slate-600 hover:text-red-400 hover:bg-slate-800 rounded-md transition-colors"
-                                                title="ลบตัวเลือกนี้"
-                                            >
-                                                <Trash2 size={14} />
-                                            </button>
-                                        </div>
-                                    </div>
-                                ))
-                        )}
-                    </div>
-                </div>
-            </div>
-
-        </div>
-
-        {/* Footer Buttons */}
-        <div className="p-4 bg-slate-950 border-t border-slate-800 flex justify-end gap-3 shrink-0">
-          <button 
-            onClick={onBack}
-            className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-sm font-semibold transition-colors"
-          >
-            ย้อนกลับ
-          </button>
-          <button 
-            onClick={handleSave}
-            className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-sm font-semibold transition-colors flex items-center gap-2 shadow-lg shadow-emerald-900/20"
-          >
-            <Save size={16} /> บันทึกตัวละคร
-          </button>
+          </div>
         </div>
       </div>
     </div>

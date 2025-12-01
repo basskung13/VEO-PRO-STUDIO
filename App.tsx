@@ -1,4 +1,5 @@
 
+
 import React, { useState, useEffect } from 'react';
 import AccountBar from './components/AccountBar';
 import VideoHistory from './components/VideoHistory';
@@ -297,32 +298,6 @@ const App: React.FC = () => {
     setHistory(prev => [newItem, ...prev]);
   };
 
-  // Launch specific prompt from Storyboard
-  const handleDirectLaunch = (promptStr: string) => {
-    if (!promptStr.trim()) return;
-    
-    // Add default style/aspect ratio logic if needed, currently raw prompt
-    const finalPrompt = constructVeoPrompt({
-      prompt: promptStr,
-      aspectRatio: '16:9', // Default for storyboard scenes
-      style: 'Cinematic' // Default style
-    });
-
-    navigator.clipboard.writeText(finalPrompt).then(() => {
-       setLastCopied(true);
-       setTimeout(() => setLastCopied(false), 3000);
-    }).catch(err => console.error('Failed to copy: ', err));
-
-    addToHistory(promptStr, finalPrompt);
-
-    setAccountUsage(prev => ({
-        ...prev,
-        [currentAccountIndex]: (prev[currentAccountIndex] || 0) + 1
-    }));
-
-    openGeminiWeb(currentAccountIndex);
-  };
-
   const handleCopyOnly = (text: string) => {
     navigator.clipboard.writeText(text);
   };
@@ -350,6 +325,24 @@ const App: React.FC = () => {
     setCustomOptions(prev => prev.filter(opt => opt.id !== id));
   };
 
+  // Fix: Define handleDirectLaunch function
+  const handleDirectLaunch = (prompt: string) => {
+    // Increment usage count for the current account
+    setAccountUsage(prev => ({
+      ...prev,
+      [currentAccountIndex]: (prev[currentAccountIndex] || 0) + 1,
+    }));
+
+    // Construct the prompt config and open Gemini Web
+    const config = {
+      prompt: prompt,
+      // Fix: Explicitly cast '16:9' to AspectRatio type
+      aspectRatio: '16:9' as AspectRatio, // Default aspect ratio, can be refined if needed
+    };
+    const finalPrompt = constructVeoPrompt(config);
+    openGeminiWeb(currentAccountIndex); // Open Gemini Web in the correct account context
+    addToHistory(prompt, finalPrompt); // Add to history
+  };
 
   const activeApiKeyObj = apiKeys.find(k => k.id === activeKeyId) || null;
   const currentUsage = accountUsage[currentAccountIndex] || 0;
@@ -478,6 +471,8 @@ const App: React.FC = () => {
                     customOptions={customOptions}
                     onAddCustomOption={handleAddCustomOption}
                     onRemoveCustomOption={handleRemoveCustomOption}
+                    activeApiKey={activeApiKeyObj} // Pass active API key
+                    onOpenApiKeyManager={() => setIsKeyManagerOpen(true)} // Pass handler to open API key manager
                  />
              </div>
         ) : (

@@ -1,14 +1,16 @@
 
+
 import React, { useState } from 'react';
 import { Scene, Character, ApiKey, AspectRatio } from '../types';
 import { Sparkles, Plus, Trash2, Film, Video, Copy, Play, AlertCircle, Wand2, Sun, Mic2, Loader2, MonitorPlay } from 'lucide-react';
-import { generateStoryboardFromPlot, generateVeoVideo } from '../services/geminiService';
+import { generateStoryboardFromPlot, generateVeoVideo, generateCreativePrompt } from '../services/geminiService'; // Import generateCreativePrompt
 
 interface PromptBuilderProps {
   characters: Character[];
-  activeApiKey: ApiKey | null;
+  activeApiKey: ApiKey | null; // Keep activeApiKey for UI display purposes if needed, but not for API calls
   onOpenApiKeyManager: () => void;
   onLaunchScene: (prompt: string) => void;
+  onNavigateToCharacterStudio: () => void;
 }
 
 const WEATHERS = ['Sunny (แดดจัด)', 'Cloudy (เมฆมาก)', 'Rainy (ฝนตก)', 'Stormy (พายุ)', 'Snowy (หิมะตก)', 'Foggy (หมอกหนา)', 'Windy (ลมแรง)'];
@@ -17,7 +19,7 @@ const LIGHTINGS = ['Natural (ธรรมชาติ)', 'Golden Hour (แสง
 
 const PromptBuilder: React.FC<PromptBuilderProps> = ({ 
   characters, 
-  activeApiKey, 
+  activeApiKey, // This is now primarily for UI display, actual API calls use process.env.API_KEY
   onOpenApiKeyManager,
   onLaunchScene
 }) => {
@@ -35,8 +37,11 @@ const PromptBuilder: React.FC<PromptBuilderProps> = ({
   const cleanVal = (val: string) => val.split('(')[0].trim();
 
   const handleAiGenerate = async () => {
+    // For general AI generation, we still rely on the user having set an API key in the manager.
+    // The specific `window.aistudio` logic is only for image/video generation with specific models.
     if (!activeApiKey) {
       onOpenApiKeyManager();
+      alert("กรุณาตั้งค่า API Key ก่อนใช้งาน AI Director ครับ");
       return;
     }
     if (!plot.trim()) {
@@ -53,10 +58,11 @@ const PromptBuilder: React.FC<PromptBuilderProps> = ({
         intensity
       };
       
-      const newScenes = await generateStoryboardFromPlot(activeApiKey.key, plot, characters, moodContext);
+      // Pass a dummy apiKey or null, as the service function now uses process.env.API_KEY
+      const newScenes = await generateStoryboardFromPlot(activeApiKey.key, plot, characters, moodContext); 
       setScenes(newScenes);
-    } catch (e) {
-      alert("เกิดข้อผิดพลาดในการสร้างบท");
+    } catch (e: any) {
+      alert(e.message || "เกิดข้อผิดพลาดในการสร้างบท");
     } finally {
       setIsGenerating(false);
     }
@@ -127,11 +133,33 @@ const PromptBuilder: React.FC<PromptBuilderProps> = ({
   };
 
   const handleGenerateVideo = async (sceneId: string) => {
-    if (!activeApiKey) {
+    if (!activeApiKey) { // Still use activeApiKey to determine if the user has *configured* an API Key for general purpose.
       onOpenApiKeyManager();
+      alert("กรุณาตั้งค่า API Key ก่อนใช้งาน AI Director ครับ (ต้องใช้ API Key แบบชำระเงินสำหรับ Veo)");
       return;
     }
     
+    // For Veo, we also need to explicitly check window.aistudio.hasSelectedApiKey()
+    // and potentially open the selection dialog.
+    if (window.aistudio && typeof window.aistudio.hasSelectedApiKey === 'function') {
+      try {
+        const hasAistudioKey = await window.aistudio.hasSelectedApiKey();
+        if (!hasAistudioKey) {
+          alert("สำหรับ Veo คุณต้องเลือก API Key ที่ผูกกับการเรียกเก็บเงินแล้ว ผ่านหน้าต่าง 'ตั้งค่า API Key' ที่จะเปิดขึ้นมา");
+          await window.aistudio.openSelectKey();
+          // Assume success and proceed as per guidelines
+        }
+      } catch (aistudioError) {
+        console.error("Error with aistudio.hasSelectedApiKey/openSelectKey:", aistudioError);
+        alert("เกิดข้อผิดพลาดในการตรวจสอบ/เลือก API Key จากระบบ (AISTUDIO). โปรดลองอีกครั้ง");
+        return;
+      }
+    } else {
+      alert("Veo API Key selection is not available. Please ensure your environment supports window.aistudio.");
+      return;
+    }
+
+
     const scene = scenes.find(s => s.id === sceneId);
     if (!scene) return;
 
@@ -141,17 +169,18 @@ const PromptBuilder: React.FC<PromptBuilderProps> = ({
     setScenes(prev => prev.map(s => s.id === sceneId ? { ...s, generationStatus: 'generating' } : s));
 
     try {
-      const videoUrl = await generateVeoVideo(activeApiKey.key, prompt, aspectRatio);
+      // Pass a dummy apiKey or null, as the service function now uses process.env.API_KEY
+      const videoUrl = await generateVeoVideo(activeApiKey.key, prompt, aspectRatio); 
       
       setScenes(prev => prev.map(s => s.id === sceneId ? { 
         ...s, 
         generationStatus: 'completed',
         generatedVideoUrl: videoUrl
       } : s));
-    } catch (error) {
+    } catch (error: any) {
       console.error(error);
       setScenes(prev => prev.map(s => s.id === sceneId ? { ...s, generationStatus: 'error' } : s));
-      alert("เกิดข้อผิดพลาดในการสร้างวีดีโอ (API Error)");
+      alert(error.message || "เกิดข้อผิดพลาดในการสร้างวีดีโอ (API Error)");
     }
   };
 
@@ -248,7 +277,7 @@ const PromptBuilder: React.FC<PromptBuilderProps> = ({
 
             <button
               onClick={handleAiGenerate}
-              disabled={isGenerating}
+              disabled={isGenerating || !activeApiKey} // Disable if no activeApiKey for general AI director features
               className={`w-full py-3 rounded-lg font-bold text-sm flex items-center justify-center gap-2 transition-all ${
                 activeApiKey 
                   ? 'bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white shadow-lg' 
