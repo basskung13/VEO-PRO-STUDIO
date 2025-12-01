@@ -34,7 +34,11 @@ export interface ApiKey {
 export interface CustomOption {
   id: string;
   value: string;
-  category: 'character' | 'setting' | 'atmosphere' | 'weather';
+  // Link to specific character attribute keys for better organization
+  attributeKey: 'gender' | 'ageGroup' | 'skinTone' | 'faceShape' | 'eyeShape' | 'eyeColor' |
+                'hairStyle' | 'hairColor' | 'hairTexture' | 'facialFeatures' | 'bodyType' |
+                'clothingStyle' | 'clothingColor' | 'clothingDetail' | 'accessories' |
+                'weapons' | 'personality' | 'currentMood';
 }
 
 // Character Studio Types
@@ -67,6 +71,7 @@ export interface Character {
   attributes: CharacterAttributes;
   seed: string;
   visualDescriptionOverride?: string; // New field for detailed visual description
+  dialogueExample?: string; // New field for example dialogue lines
   createdAt: number;
 }
 
@@ -78,6 +83,7 @@ export interface Scene {
   setting: string; // Environment
   dialogue?: string; // Optional speaking line
   shotType: string; // Camera angle
+  shotAngle?: string; // New field for camera angle
   duration: '5s' | '8s';
   generatedVideoUrl?: string; // URL of the generated video
   generationStatus?: 'idle' | 'generating' | 'completed' | 'error'; 
@@ -91,6 +97,10 @@ export interface StoryboardProject {
 
 export interface PromptBuilderState {
   concept: string;
+}
+
+export interface LoggedInUser {
+  username: string;
 }
 
 declare global {

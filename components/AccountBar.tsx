@@ -1,7 +1,8 @@
 
+
 import React, { useState } from 'react';
-import { Users, ChevronDown, Check, Edit2, X, Settings } from 'lucide-react';
-import { UserProfile } from '../types';
+import { Users, ChevronDown, Check, Edit2, X, Settings, LogOut } from 'lucide-react';
+import { UserProfile, LoggedInUser } from '../types';
 
 interface AccountBarProps {
   currentAccountIndex: number;
@@ -13,6 +14,8 @@ interface AccountBarProps {
   onResetCurrent: () => void;
   onUpdateProfileName: (index: number, name: string) => void;
   onOpenSettings: () => void;
+  loggedInUser: LoggedInUser | null; // New prop
+  onLogout: () => void; // New prop
 }
 
 const AccountBar: React.FC<AccountBarProps> = ({ 
@@ -24,7 +27,9 @@ const AccountBar: React.FC<AccountBarProps> = ({
   onAccountSelect,
   onResetCurrent,
   onUpdateProfileName,
-  onOpenSettings
+  onOpenSettings,
+  loggedInUser, // Destructure new prop
+  onLogout // Destructure new prop
 }) => {
   const currentUsage = usageMap[currentAccountIndex] || 0;
   const isLimitReached = currentUsage >= maxCount;
@@ -108,7 +113,7 @@ const AccountBar: React.FC<AccountBarProps> = ({
             >
                 <div className="flex items-center gap-2">
                     <Users size={14} />
-                    <span>{currentProfileName.startsWith('Account ') ? `Google ${currentProfileName}` : currentProfileName}</span>
+                    <span>{loggedInUser ? loggedInUser.username : (currentProfileName.startsWith('Account ') ? `Google ${currentProfileName}` : currentProfileName)}</span>
                 </div>
                 <ChevronDown size={14} className={`transition-transform ${isOpen ? 'rotate-180' : ''}`} />
             </button>
@@ -201,6 +206,18 @@ const AccountBar: React.FC<AccountBarProps> = ({
                            <Settings size={14} />
                            Manage Connections
                         </button>
+                        {loggedInUser && (
+                           <button
+                             onClick={() => {
+                               setIsOpen(false);
+                               onLogout();
+                             }}
+                             className="w-full mt-2 py-2 px-3 flex items-center justify-center gap-2 text-xs font-medium text-red-400 hover:text-white hover:bg-red-800/20 rounded-lg transition-colors"
+                           >
+                             <LogOut size={14} />
+                             ออกจากระบบ ({loggedInUser.username})
+                           </button>
+                        )}
                     </div>
                 </div>
             )}
