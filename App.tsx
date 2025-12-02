@@ -154,18 +154,29 @@ const App: React.FC = () => {
   const handleRemoveCustomOption = (id: string) => setCustomOptions(prev => prev.filter(opt => opt.id !== id));
 
   const handleGenerateSceneVideo = (prompt: string) => {
-    let nextAccountIndex = -1;
+    // 1. Find all available accounts
+    const availableAccounts: number[] = [];
     for (let i = 0; i < activeSlotCount; i++) {
       if ((accountUsage[i] || 0) < MAX_DAILY_COUNT) {
-        nextAccountIndex = i;
-        break;
+        availableAccounts.push(i);
       }
     }
-    if (nextAccountIndex !== -1) {
+
+    // 2. Randomly select from available accounts
+    if (availableAccounts.length > 0) {
+      const randomIndex = Math.floor(Math.random() * availableAccounts.length);
+      const nextAccountIndex = availableAccounts[randomIndex];
+
+      // Switch to the selected account immediately
       setCurrentAccountIndex(nextAccountIndex);
+      
+      // Increment usage for that account
       setAccountUsage(prev => ({ ...prev, [nextAccountIndex]: (prev[nextAccountIndex] || 0) + 1 }));
+      
       const config = { prompt: prompt, aspectRatio: '16:9' as AspectRatio };
       const finalPrompt = constructVeoPrompt(config);
+      
+      // Open Gemini Web with the selected authuser
       openGeminiWeb(nextAccountIndex); 
       addToHistory(prompt, finalPrompt);
     } else {
@@ -185,22 +196,25 @@ const App: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-slate-950 pb-20 font-sans">
-      <AccountBar 
-        currentAccountIndex={currentAccountIndex}
-        activeSlotCount={activeSlotCount}
-        usageMap={accountUsage}
-        userProfiles={userProfiles}
-        maxCount={MAX_DAILY_COUNT}
-        onAccountSelect={setCurrentAccountIndex} 
-        onResetCurrent={resetCurrentAccount}
-        onUpdateProfileName={updateProfileName}
-        onOpenSettings={() => setCurrentView('settings')}
-        loggedInUser={loggedInUser}
-        onLogout={handleLogout}
-      />
+      {/* Account Bar - ONLY shown in generator view (Storyboard Pro) */}
+      {currentView === 'generator' && (
+        <AccountBar 
+          currentAccountIndex={currentAccountIndex}
+          activeSlotCount={activeSlotCount}
+          usageMap={accountUsage}
+          userProfiles={userProfiles}
+          maxCount={MAX_DAILY_COUNT}
+          onAccountSelect={setCurrentAccountIndex} 
+          onResetCurrent={resetCurrentAccount}
+          onUpdateProfileName={updateProfileName}
+          onOpenSettings={() => setCurrentView('settings')}
+          loggedInUser={loggedInUser}
+          onLogout={handleLogout}
+        />
+      )}
 
       {/* Main Navigation */}
-      <nav className="container mx-auto px-4 mt-6 flex justify-center">
+      <nav className={`container mx-auto px-4 ${currentView === 'generator' ? 'mt-6' : 'mt-8'} flex justify-center`}>
           <div className="bg-slate-900 border border-slate-800 p-1 rounded-xl flex gap-1 shadow-lg overflow-x-auto">
              <button onClick={() => setCurrentView('settings')} className={`px-6 py-2 rounded-lg text-sm font-bold flex items-center gap-2 transition-all whitespace-nowrap ${currentView === 'settings' ? 'bg-emerald-600 text-white shadow' : 'text-slate-400 hover:text-white hover:bg-slate-800'}`}>
                 <Settings size={16} /> Global Settings
@@ -258,7 +272,7 @@ const App: React.FC = () => {
                 <div className="w-full max-w-7xl bg-slate-900/80 border border-slate-800 rounded-2xl p-6 backdrop-blur-md shadow-2xl relative overflow-hidden transition-all duration-300 animate-fade-in">
                 {(accountUsage[currentAccountIndex] || 0) >= MAX_DAILY_COUNT && (
                     <div className="absolute top-0 left-0 right-0 bg-red-500/10 border-b border-red-500/20 p-2 flex items-center justify-center gap-2 text-red-300 text-xs z-20">
-                        <AlertTriangle size={12} /> <span>โควต้าบัญชีนี้เต็มแล้ว กรุณาสลับบัญชีด้านบน</span>
+                        <AlertTriangle size={12} /> <span>โควต้าบัญชีนี้เต็มแล้ว ระบบจะสุ่มบัญชีใหม่ให้เมื่อคุณกดสร้าง</span>
                     </div>
                 )}
                 <div className="flex justify-between items-center mb-6 relative z-10">
