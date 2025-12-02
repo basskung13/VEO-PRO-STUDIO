@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import AccountBar from './components/AccountBar';
 import VideoHistory from './components/VideoHistory';
@@ -167,7 +168,6 @@ const DEFAULT_CUSTOM_OPTIONS_DATA: CustomOption[] = [
   { id: 'opt-w3', value: 'Bow (ธนู)', attributeKey: 'weapons' },
   { id: 'opt-w4', value: 'Magic Wand (ไม้กายสิทธิ์)', attributeKey: 'weapons' },
   { id: 'opt-w5', value: 'Knife (มีด)', attributeKey: 'weapons' },
-  // Fix: Corrected the attributeKey for 'ขวาน' from an invalid string literal to 'weapons'.
   { id: 'opt-w6', value: 'Axe (ขวาน)', attributeKey: 'weapons' },
   { id: 'opt-w7', value: 'Shield (โล่)', attributeKey: 'weapons' },
   { id: 'opt-w8', value: 'Staff (ไม้เท้า)', attributeKey: 'weapons' },
@@ -191,7 +191,7 @@ const DEFAULT_CUSTOM_OPTIONS_DATA: CustomOption[] = [
   { id: 'opt-m7', value: 'Confused (สับสน)', attributeKey: 'currentMood' },
   { id: 'opt-m8', value: 'Excited (ตื่นเต้น)', attributeKey: 'currentMood' },
   { id: 'opt-m9', value: 'Determined (มุ่งมั่น)', attributeKey: 'currentMood' },
-  // Environment Elements - NEW
+  // Environment Elements
   { id: 'opt-ee1', value: 'ไก่ (Chicken)', attributeKey: 'environmentElement' },
   { id: 'opt-ee2', value: 'ช้าง (Elephant)', attributeKey: 'environmentElement' },
   { id: 'opt-ee3', value: 'ม้า (Horse)', attributeKey: 'environmentElement' },
@@ -202,6 +202,32 @@ const DEFAULT_CUSTOM_OPTIONS_DATA: CustomOption[] = [
   { id: 'opt-ee8', value: 'ตลาดสด (Fresh Market)', attributeKey: 'environmentElement' },
   { id: 'opt-ee9', value: 'วัดเก่า (Old Temple)', attributeKey: 'environmentElement' },
   { id: 'opt-ee10', value: 'ภูเขา (Mountain)', attributeKey: 'environmentElement' },
+
+  // Story Dialects (NEW)
+  { id: 'opt-sd1', value: 'TH ไทยกลาง', attributeKey: 'storyDialect' },
+  { id: 'opt-sd2', value: 'TH ภาษาอีสาน', attributeKey: 'storyDialect' },
+  { id: 'opt-sd3', value: 'TH ภาษาเหนือ (คำเมือง)', attributeKey: 'storyDialect' },
+  { id: 'opt-sd4', value: 'TH ภาษาใต้', attributeKey: 'storyDialect' },
+  { id: 'opt-sd5', value: 'TH ราชาศัพท์', attributeKey: 'storyDialect' },
+  { id: 'opt-sd6', value: 'TH ไทยโบราณ', attributeKey: 'storyDialect' },
+  { id: 'opt-sd7', value: 'EN English (US)', attributeKey: 'storyDialect' },
+  { id: 'opt-sd8', value: 'EN English (Old/Shakespearean)', attributeKey: 'storyDialect' },
+  
+  // Story Tones (NEW)
+  { id: 'opt-st1', value: 'Serious/Dramatic (จริงจัง/ดราม่า)', attributeKey: 'storyTone' },
+  { id: 'opt-st2', value: 'Comedic/Funny (ตลก/ขบขัน)', attributeKey: 'storyTone' },
+  { id: 'opt-st3', value: 'Dark/Gritty (มืดมน/ดิบเถื่อน)', attributeKey: 'storyTone' },
+  { id: 'opt-st4', value: 'Whimsical/Fantasy (แฟนตาซี/เพ้อฝัน)', attributeKey: 'storyTone' },
+  { id: 'opt-st5', value: 'Romantic (โรแมนติก)', attributeKey: 'storyTone' },
+  { id: 'opt-st6', value: 'Horror/Scary (สยองขวัญ)', attributeKey: 'storyTone' },
+  { id: 'opt-st7', value: 'Action-packed (แอคชั่นมันส์ๆ)', attributeKey: 'storyTone' },
+
+  // Story Styles (NEW)
+  { id: 'opt-ss1', value: 'Cinematic Movie (ภาพยนตร์)', attributeKey: 'storyStyle' },
+  { id: 'opt-ss2', value: 'TV Series (ละครทีวี)', attributeKey: 'storyStyle' },
+  { id: 'opt-ss3', value: 'Documentary (สารคดี)', attributeKey: 'storyStyle' },
+  { id: 'opt-ss4', value: 'Anime/Animation (อนิเมะ)', attributeKey: 'storyStyle' },
+  { id: 'opt-ss5', value: 'Stage Play (ละครเวที)', attributeKey: 'storyStyle' },
 ];
 
 type View = 'generator' | 'characters';
@@ -505,10 +531,7 @@ const App: React.FC = () => {
         }}
         onSelectStoryKey={setActiveStoryApiKeyId}
         onSelectCharacterKey={setActiveCharacterApiKeyId}
-        // Custom Options Management
-        customOptions={customOptions}
-        onAddCustomOption={handleAddCustomOption}
-        onRemoveCustomOption={handleRemoveCustomOption}
+        // Custom Options Management - REMOVED from Global Settings
       />
 
       {/* Main Navigation */}
@@ -585,14 +608,15 @@ const App: React.FC = () => {
                         onOpenApiKeyManager={() => setIsGlobalSettingsOpen(true)}
                         onGenerateSceneVideo={handleGenerateSceneVideo}
                         onNavigateToCharacterStudio={() => setCurrentView('characters')}
-                        // New props for storyboard generation control
                         selectedCharactersForStoryboard={selectedCharactersForStoryboard}
                         onSelectCharactersForStoryboard={setSelectedCharactersForStoryboard}
                         maxCharactersPerScene={maxCharactersPerScene}
                         onSetMaxCharactersPerScene={setMaxCharactersPerScene}
                         numberOfScenes={numberOfScenes}
                         onSetNumberOfScenes={setNumberOfScenes}
-                        customOptions={customOptions} // Pass custom options for environment elements
+                        customOptions={customOptions}
+                        onAddCustomOption={handleAddCustomOption} // Passed props
+                        onRemoveCustomOption={handleRemoveCustomOption} // Passed props
                     />
                 </div>
                 </div>

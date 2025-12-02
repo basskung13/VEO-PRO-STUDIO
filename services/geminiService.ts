@@ -127,10 +127,18 @@ export const generateCharacterImage = async (prompt: string, characterApiKey: st
 // --- Storyboard Generation ---
 export const generateStoryboardFromPlot = async (
   plot: string,
-  selectedCharacters: Character[], // Changed to selectedCharacters
-  maxCharactersPerScene: number, // New parameter
-  numberOfScenes: number, // New parameter
-  moodContext: { weather: string; atmosphere: string; lighting: string; intensity: number },
+  selectedCharacters: Character[],
+  maxCharactersPerScene: number,
+  numberOfScenes: number,
+  moodContext: { 
+    weather: string; 
+    atmosphere: string; 
+    lighting: string; 
+    intensity: number;
+    dialect: string; // NEW
+    tone: string; // NEW
+    style: string; // NEW
+  },
   storyApiKey: string
 ): Promise<Scene[]> => {
   if (!storyApiKey) {
@@ -138,16 +146,34 @@ export const generateStoryboardFromPlot = async (
   }
 
   const ai = new GoogleGenAI({ apiKey: storyApiKey });
-  const characterDescriptions = selectedCharacters.map(c => `${c.name} (${c.nameEn}): ${c.description} (Personality: ${c.attributes.personality})`).join('\n');
+  
+  // Create character description string, including dialogue examples if available
+  const characterDescriptions = selectedCharacters.map(c => {
+    let desc = `${c.name} (${c.nameEn}): ${c.description} (Personality: ${c.attributes.personality})`;
+    if (c.dialogueExample && c.dialogueExample.trim() !== '') {
+      desc += ` [Speaking Style/Dialogue Example: "${c.dialogueExample}"]`;
+    }
+    return desc;
+  }).join('\n');
 
-  const fullPrompt = `Based on the following plot, selected character descriptions, and global mood settings, generate exactly ${numberOfScenes} distinct video scenes for a short film. Each scene should have a characterId (or 'none' for generic characters if no specific character is needed or available), action, setting, a detailed dialogue for the character (if a specific character is present and it makes sense for them to speak, keep it concise), specific environmentElements (e.g., objects, people, animals in the scene), shotType (e.g., Wide Angle, Close Up, Drone Shot, Tracking Shot, Over the Shoulder, Low Angle), and duration ('5s' or '8s'). Ensure no more than ${maxCharactersPerScene} characters appear in any single scene from the provided list.
+  // Updated Prompt with detailed story context
+  const fullPrompt = `Based on the following plot, selected character descriptions, and deeply detailed global story context, generate exactly ${numberOfScenes} distinct video scenes for a short film.
+
+Global Story Context:
+- Weather: ${moodContext.weather}
+- Atmosphere: ${moodContext.atmosphere}
+- Lighting: ${moodContext.lighting}
+- Emotional Intensity: ${moodContext.intensity}%
+- Language/Dialect for Dialogue: ${moodContext.dialect} (Ensure specific regional/cultural dialect words are used if specified)
+- Story Tone: ${moodContext.tone}
+- Visual/Directing Style: ${moodContext.style}
 
 Plot: ${plot}
 
 Selected Characters for consideration:
 ${selectedCharacters.length > 0 ? characterDescriptions : "No specific characters selected, use generic ones if needed."}
 
-Global Mood: Weather: ${moodContext.weather}, Atmosphere: ${moodContext.atmosphere}, Lighting: ${moodContext.lighting}, Intensity: ${moodContext.intensity}%.
+Constraint: No more than ${maxCharactersPerScene} characters should appear in any single scene from the provided list. Each scene MUST have a dialogue line if a character is present, strictly following the requested Dialect/Language style and the Character's specific Speaking Style (if provided).
 
 Output in JSON format as an array of Scene objects:
 [
@@ -155,7 +181,7 @@ Output in JSON format as an array of Scene objects:
     "characterId": "character_id_here_or_none",
     "action": "Character doing something",
     "setting": "Location",
-    "dialogue": "Optional dialogue line",
+    "dialogue": "Spoken line in ${moodContext.dialect}",
     "environmentElements": ["object1", "person2", "animal3"],
     "shotType": "Shot Type",
     "duration": "5s"
@@ -258,5 +284,3 @@ export const generateCreativePrompt = async (concept: string, storyApiKey: strin
     throw new Error(`ไม่สามารถสร้างพรอมต์เชิงสร้างสรรค์ได้: ${error.message || 'ข้อผิดพลาด API ไม่ทราบสาเหตุ'}`);
   }
 };
-
-// Removed generateVeoVideo as per user's request for automatic account switching and no direct API video generation.

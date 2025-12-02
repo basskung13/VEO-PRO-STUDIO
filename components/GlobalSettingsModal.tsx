@@ -1,8 +1,7 @@
 
-
 import React, { useState } from 'react';
-import { ApiKey, UserProfile, CustomOption, CharacterAttributes } from '../types';
-import { Key, Plus, Trash2, Check, Eye, EyeOff, X, ExternalLink, Mail, User, CheckCircle, Settings, Filter } from 'lucide-react';
+import { ApiKey, UserProfile } from '../types';
+import { Key, Plus, Trash2, Check, Eye, EyeOff, X, ExternalLink, Mail, User, CheckCircle, Settings } from 'lucide-react';
 import { openGoogleAccountChooser } from '../services/geminiService';
 
 interface GlobalSettingsModalProps {
@@ -21,65 +20,7 @@ interface GlobalSettingsModalProps {
   onRemoveKey: (id: string) => void;
   onSelectStoryKey: (id: string) => void;
   onSelectCharacterKey: (id: string) => void;
-  // Custom Options Management Props
-  customOptions: CustomOption[];
-  onAddCustomOption: (option: CustomOption) => void;
-  onRemoveCustomOption: (id: string) => void;
 }
-
-// Map of attribute keys to their Thai display names for custom option categories
-const ATTRIBUTE_CATEGORIES_MAP_GLOBAL: { [K in keyof CharacterAttributes | 'environmentElement']: string } = {
-  gender: 'เพศ (Gender)',
-  ageGroup: 'กลุ่มอายุ (Age Group)',
-  skinTone: 'สีผิว (Skin Tone)',
-  faceShape: 'รูปหน้า (Face Shape)',
-  eyeShape: 'รูปร่างตา (Eye Shape)',
-  eyeColor: 'สีตา (Eye Color)',
-  hairStyle: 'ทรงผม (Hair Style)',
-  hairColor: 'สีผม (Hair Color)',
-  hairTexture: 'ลักษณะเส้นผม (Hair Texture)',
-  facialFeatures: 'จุดเด่นบนใบหน้า (Facial Features)',
-  bodyType: 'รูปร่าง (Body Type)',
-  clothingStyle: 'สไตล์ชุด (Clothing Style)',
-  clothingColor: 'สีชุด (Color)',
-  clothingDetail: 'รายละเอียดชุด (Detail)',
-  accessories: 'เครื่องประดับ (Accessories)',
-  weapons: 'อาวุธ/ของถือ (Weapons)',
-  personality: 'บุคลิกภาพ (Personality)',
-  currentMood: 'อารมณ์ปัจจุบัน (Current Mood)',
-  environmentElement: 'องค์ประกอบสภาพแวดล้อม (Environment Element)', // NEW
-};
-
-// Keys for attributes that are fully managed via custom options (includes environmentElement)
-const ALL_CUSTOM_OPTION_KEYS: (keyof CharacterAttributes | 'environmentElement')[] = [
-  'gender', 'ageGroup', 'skinTone', 'faceShape', 'eyeShape', 'eyeColor',
-  'hairStyle', 'hairColor', 'hairTexture', 'facialFeatures', 'bodyType',
-  'clothingStyle', 'clothingColor', 'clothingDetail', 'accessories', 'weapons',
-  'personality', 'currentMood', 'environmentElement',
-];
-
-// Map of attribute keys to their placeholder text suggestions for adding custom options
-const ATTRIBUTE_PLACEHOLDER_MAP_GLOBAL: { [K in keyof CharacterAttributes | 'environmentElement']: string } = {
-  gender: "เช่น 'เพศหุ่นยนต์', 'เพศเอเลี่ยน'",
-  ageGroup: "เช่น 'วัยทารกวิวัฒนาการ', 'วัยผู้ใหญ่โบราณ'",
-  skinTone: "เช่น 'ผิวสีเงิน', 'ผิวสีฟ้าอ่อน'",
-  faceShape: "เช่น 'หน้ารูปเพชรเหลี่ยมคม', 'หน้ายาวเรียว'",
-  eyeShape: "เช่น 'ตาคมแบบปีศาจ', 'ตากลมโตน่ารัก'",
-  eyeColor: "เช่น 'ตาสีทองส่องแสง', 'ตาสีรุ้ง'",
-  hairStyle: "เช่น 'ผมทรงรากไม้', 'ผมทรงเมือก'",
-  hairColor: "เช่น 'ผมสีคริสตัล', 'ผมสีเปลวไฟ'",
-  hairTexture: "เช่น 'ผมเป็นหนามแหลม', 'ผมเป็นเกล็ด'",
-  facialFeatures: "เช่น 'หนวดปลาหมึก', 'รอยสักเผ่า'",
-  bodyType: "เช่น 'รูปร่างเพรียวลม', 'รูปร่างหินผา'",
-  clothingStyle: "เช่น 'ชุดอวกาศวินเทจ', 'ชุดกิโมโนอนาคต'",
-  clothingColor: "เช่น 'สีดำสนิท', 'สีม่วงเรืองแสง'",
-  clothingDetail: "เช่น 'มีปีกขนนก', 'มีโซ่ตรวน'",
-  accessories: "เช่น 'มงกุฎดอกไม้', 'เข็มขัดพลังงาน'",
-  weapons: "เช่น 'ดาบแสง', 'ปืนเลเซอร์'",
-  personality: "เช่น 'ขี้เล่นแต่จริงจัง', 'เงียบขรึมแต่ฉลาด'",
-  currentMood: "เช่น 'คลุ้มคลั่ง', 'สงบนิ่งอย่างประหลาด'",
-  environmentElement: "เช่น 'ไก่', 'ช้าง', 'ชาวบ้านจำนวนมาก'", // NEW
-};
 
 const GlobalSettingsModal: React.FC<GlobalSettingsModalProps> = ({
   isOpen,
@@ -95,19 +36,11 @@ const GlobalSettingsModal: React.FC<GlobalSettingsModalProps> = ({
   onRemoveKey,
   onSelectStoryKey,
   onSelectCharacterKey,
-  customOptions,
-  onAddCustomOption,
-  onRemoveCustomOption,
 }) => {
   const [newKeyName, setNewKeyName] = useState('');
   const [newKeyValue, setNewKeyValue] = useState('');
   const [showNewKey, setShowNewKey] = useState(false);
   const [showExistingKeyId, setShowExistingKeyId] = useState<string | null>(null);
-
-  const [newCustomOptionValue, setNewCustomOptionValue] = useState('');
-  const [selectedManageCategory, setSelectedManageCategory] = useState<keyof CharacterAttributes | 'environmentElement'>(
-    ALL_CUSTOM_OPTION_KEYS[0]
-  );
 
   if (!isOpen) return null;
 
@@ -135,25 +68,6 @@ const GlobalSettingsModal: React.FC<GlobalSettingsModalProps> = ({
     }
   };
 
-  const handleAddCustomOptionClick = () => {
-    if (newCustomOptionValue.trim() && selectedManageCategory) {
-      const isDuplicate = customOptions.some(
-        opt => opt.value.trim() === newCustomOptionValue.trim() && opt.attributeKey === selectedManageCategory
-      );
-      if (isDuplicate) {
-        alert('ตัวเลือกนี้มีอยู่แล้วในหมวดหมู่เดียวกัน!');
-        return;
-      }
-
-      onAddCustomOption({
-        id: Date.now().toString(),
-        value: newCustomOptionValue.trim(),
-        attributeKey: selectedManageCategory
-      });
-      setNewCustomOptionValue('');
-    }
-  };
-
   const activeAccounts = Array.from({ length: activeSlotCount }, (_, i) => i);
 
   return (
@@ -168,7 +82,7 @@ const GlobalSettingsModal: React.FC<GlobalSettingsModalProps> = ({
               Global Settings
             </h2>
             <p className="text-slate-400 text-sm mt-1">
-              Manage accounts, API keys, and other application settings.
+              Manage accounts and API keys.
             </p>
           </div>
           <button 
@@ -446,53 +360,6 @@ const GlobalSettingsModal: React.FC<GlobalSettingsModalProps> = ({
                     </div>
                   );
                 })}
-              </div>
-            </div>
-
-            {/* Section: Custom Options Management */}
-            <div className="bg-slate-950/50 p-4 rounded-xl border border-slate-800 space-y-4">
-              <h3 className="text-slate-300 font-bold uppercase text-xs tracking-wider flex items-center gap-2">
-                <Filter size={16}/> จัดการตัวเลือกเอง (Custom Options)
-              </h3>
-              <div className="mb-4">
-                <label className="block text-slate-400 text-xs font-semibold mb-1">เลือกหมวดหมู่</label>
-                <select 
-                  value={selectedManageCategory}
-                  onChange={(e) => setSelectedManageCategory(e.target.value as keyof CharacterAttributes | 'environmentElement')}
-                  className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm focus:border-emerald-500 outline-none"
-                >
-                  {ALL_CUSTOM_OPTION_KEYS.map(key => (
-                    <option key={key} value={key}>{ATTRIBUTE_CATEGORIES_MAP_GLOBAL[key]}</option>
-                  ))}
-                </select>
-              </div>
-              <div className="flex gap-2 mb-4">
-                <input 
-                  type="text" 
-                  value={newCustomOptionValue}
-                  onChange={e => setNewCustomOptionValue(e.target.value)}
-                  placeholder={ATTRIBUTE_PLACEHOLDER_MAP_GLOBAL[selectedManageCategory] || "เพิ่มตัวเลือกใหม่..."}
-                  className="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm focus:border-emerald-500 outline-none"
-                />
-                <button 
-                  onClick={handleAddCustomOptionClick}
-                  className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-bold rounded-lg flex items-center gap-2"
-                >
-                  <Plus size={16}/> เพิ่ม
-                </button>
-              </div>
-              <div className="max-h-40 overflow-y-auto pr-2 space-y-2">
-                {customOptions.filter(opt => opt.attributeKey === selectedManageCategory).map(opt => (
-                  <div key={opt.id} className="flex justify-between items-center bg-slate-900 border border-slate-800 rounded-lg px-3 py-2">
-                    <span className="text-slate-300 text-sm">{opt.value}</span>
-                    <button 
-                      onClick={() => onRemoveCustomOption(opt.id)}
-                      className="text-slate-500 hover:text-red-400 p-1"
-                    >
-                      <Trash2 size={14}/>
-                    </button>
-                  </div>
-                ))}
               </div>
             </div>
 

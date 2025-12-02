@@ -1,8 +1,9 @@
+
 import React, { useState } from 'react';
 import { Scene, Character, ApiKey, AspectRatio, CustomOption } from '../types';
 import { generateStoryboardFromPlot, generateCreativePrompt, handleAistudioApiKeySelection } from '../services/geminiService';
 // Fix: Added User and Check icons to the import statement.
-import { Film, Sun, Mic2, Wand2, AlertCircle, Video, Plus, Trash2, Copy, MonitorPlay, Key, Link, User, Check } from 'lucide-react'; // Added Link icon for billing
+import { Film, Sun, Mic2, Wand2, AlertCircle, Video, Plus, Trash2, Copy, MonitorPlay, Key, Link, User, Check, RefreshCw, Languages, MessageSquare, Clapperboard, Settings2, Filter } from 'lucide-react'; // Added Link icon for billing
 
 interface PromptBuilderProps {
   characters: Character[];
@@ -18,11 +19,23 @@ interface PromptBuilderProps {
   numberOfScenes: number;
   onSetNumberOfScenes: (count: number) => void;
   customOptions: CustomOption[]; // For environment elements
+  onAddCustomOption: (option: CustomOption) => void;
+  onRemoveCustomOption: (id: string) => void;
 }
 
 const WEATHERS = ['Sunny (แดดจัด)', 'Cloudy (เมฆมาก)', 'Rainy (ฝนตก)', 'Stormy (พายุ)', 'Snowy (หิมะตก)', 'Foggy (หมอกหนา)', 'Windy (ลมแรง)'];
 const ATMOSPHERES = ['Cinematic (ภาพยนตร์)', 'Dreamy (ชวนฝัน)', 'Gloomy (หม่นหมอง)', 'Vibrant (สดใส)', 'Dark/Horror (สยองขวัญ)', 'Romantic (โรแมนติก)', 'Cyberpunk (ไซเบอร์)', 'Retro (ย้อนยุค)'];
 const LIGHTINGS = ['Natural (ธรรมชาติ)', 'Golden Hour (แสงทอง)', 'Neon (นีออน)', 'Studio (สตูดิโอ)', 'Low Key (มืดสลัว)', 'Dramatic (ดรามาติก)', 'Soft (นุ่มนวล)'];
+
+// Map of attribute keys to their Thai display names for custom option categories in Storyboard
+const STORY_ATTRIBUTE_CATEGORIES_MAP: { [key: string]: string } = {
+  storyDialect: 'ภาษา/สำเนียง (Dialect)',
+  storyTone: 'น้ำเสียงการเล่า (Story Tone)',
+  storyStyle: 'สไตล์การกำกับ (Directing Style)',
+  environmentElement: 'องค์ประกอบสภาพแวดล้อม (Environment Element)'
+};
+
+const STORY_ATTRIBUTE_KEYS = ['storyDialect', 'storyTone', 'storyStyle', 'environmentElement'];
 
 const PromptBuilder: React.FC<PromptBuilderProps> = ({ 
   characters, 
@@ -36,7 +49,9 @@ const PromptBuilder: React.FC<PromptBuilderProps> = ({
   onSetMaxCharactersPerScene,
   numberOfScenes,
   onSetNumberOfScenes,
-  customOptions // Destructure customOptions
+  customOptions, // Destructure customOptions
+  onAddCustomOption,
+  onRemoveCustomOption
 }) => {
   const [plot, setPlot] = useState('');
   const [scenes, setScenes] = useState<Scene[]>([]);
@@ -48,16 +63,30 @@ const PromptBuilder: React.FC<PromptBuilderProps> = ({
   const [lighting, setLighting] = useState('Natural (ธรรมชาติ)');
   const [intensity, setIntensity] = useState(30);
   const [aspectRatio, setAspectRatio] = useState<AspectRatio>('16:9');
+  
+  // NEW: Detailed Story Settings
+  const [dialect, setDialect] = useState('TH ไทยกลาง');
+  const [storyTone, setStoryTone] = useState('Serious/Dramatic (จริงจัง/ดราม่า)');
+  const [storyStyle, setStoryStyle] = useState('Cinematic Movie (ภาพยนตร์)');
+
+  // Custom Option Management State
+  const [newCustomOptionValue, setNewCustomOptionValue] = useState('');
+  const [selectedManageCategory, setSelectedManageCategory] = useState<string>(STORY_ATTRIBUTE_KEYS[0]);
+
 
   const cleanVal = (val: string) => val.split('(')[0].trim();
 
-  // Helper to get environment element options from customOptions
-  const getEnvironmentElementOptions = () => {
+  // Helper to get options from customOptions prop based on attribute key
+  const getOptions = (key: 'environmentElement' | 'storyDialect' | 'storyTone' | 'storyStyle') => {
     return customOptions
-      .filter(opt => opt.attributeKey === 'environmentElement')
+      .filter(opt => opt.attributeKey === key)
       .map(opt => opt.value);
   };
-  const combinedEnvironmentElements = getEnvironmentElementOptions();
+  
+  const combinedEnvironmentElements = getOptions('environmentElement');
+  const combinedDialects = getOptions('storyDialect');
+  const combinedTones = getOptions('storyTone');
+  const combinedStyles = getOptions('storyStyle');
 
   // Fix: Adjusted `toggleCharacterSelection` to pass the new array directly, aligning with `onSelectCharactersForStoryboard` prop type.
   // Helper to toggle selected characters for storyboard
@@ -67,6 +96,51 @@ const PromptBuilder: React.FC<PromptBuilderProps> = ({
       ? currentSelected.filter(id => id !== charId) 
       : [...currentSelected, charId];
     onSelectCharactersForStoryboard(newSelected);
+  };
+
+  // NEW: Randomize Settings Function
+  const handleRandomizeSettings = () => {
+    const randomItem = (arr: string[]) => arr[Math.floor(Math.random() * arr.length)];
+    
+    // Randomize Mood
+    setWeather(randomItem(WEATHERS));
+    setAtmosphere(randomItem(ATMOSPHERES));
+    setLighting(randomItem(LIGHTINGS));
+    setIntensity(Math.floor(Math.random() * 100));
+    
+    // Randomize Detailed Story Settings
+    if (combinedDialects.length > 0) setDialect(randomItem(combinedDialects));
+    if (combinedTones.length > 0) setStoryTone(randomItem(combinedTones));
+    if (combinedStyles.length > 0) setStoryStyle(randomItem(combinedStyles));
+
+    // Randomize Character Selection (Select 1-3 characters)
+    if (characters.length > 0) {
+      const shuffled = [...characters].sort(() => 0.5 - Math.random());
+      const numToSelect = Math.floor(Math.random() * Math.min(3, characters.length)) + 1;
+      const selectedIds = shuffled.slice(0, numToSelect).map(c => c.id);
+      onSelectCharactersForStoryboard(selectedIds);
+      onSetMaxCharactersPerScene(Math.max(1, Math.min(numToSelect, 3)));
+    }
+  };
+
+  const handleAddCustomOptionClick = () => {
+    if (newCustomOptionValue.trim() && selectedManageCategory) {
+      // Check for duplicate
+      const isDuplicate = customOptions.some(
+        opt => opt.value.trim() === newCustomOptionValue.trim() && opt.attributeKey === selectedManageCategory
+      );
+      if (isDuplicate) {
+        alert('ตัวเลือกนี้มีอยู่แล้วในหมวดหมู่เดียวกัน!');
+        return;
+      }
+
+      onAddCustomOption({
+        id: Date.now().toString(),
+        value: newCustomOptionValue.trim(),
+        attributeKey: selectedManageCategory as any // Type assertion needed or update CustomOption type
+      });
+      setNewCustomOptionValue('');
+    }
   };
 
 
@@ -84,9 +158,10 @@ const PromptBuilder: React.FC<PromptBuilderProps> = ({
       alert("จำนวนฉากต้องอยู่ระหว่าง 1 ถึง 10 ครับ");
       return;
     }
-    if (maxCharactersPerScene < 1 || maxCharactersPerScene > selectedCharactersForStoryboard.length || maxCharactersPerScene > 3) { // Example max
-      alert(`จำนวนตัวละครสูงสุดต่อฉากต้องอยู่ระหว่าง 1 ถึง ${Math.min(selectedCharactersForStoryboard.length, 3)} ครับ`);
-      return;
+    if (maxCharactersPerScene < 1 || maxCharactersPerScene > Math.max(1, selectedCharactersForStoryboard.length) || maxCharactersPerScene > 3) {
+      // Just a warning/correction logic, generally we want to allow at least 1
+      // alert(`จำนวนตัวละครสูงสุดต่อฉากต้องอยู่ระหว่าง 1 ถึง ${Math.min(selectedCharactersForStoryboard.length, 3)} ครับ`);
+      // Relaxed validation for UX
     }
 
 
@@ -96,7 +171,10 @@ const PromptBuilder: React.FC<PromptBuilderProps> = ({
         weather: cleanVal(weather),
         atmosphere: cleanVal(atmosphere),
         lighting: cleanVal(lighting),
-        intensity
+        intensity,
+        dialect: cleanVal(dialect), // New
+        tone: cleanVal(storyTone), // New
+        style: cleanVal(storyStyle) // New
       };
       
       const selectedChars = characters.filter(c => selectedCharactersForStoryboard.includes(c.id));
@@ -164,8 +242,8 @@ const PromptBuilder: React.FC<PromptBuilderProps> = ({
     const char = characters.find(c => c.id === scene.characterId);
     let prompt = '';
     
-    // 1. Shot Type/Angle
-    prompt += `${scene.shotType} of `;
+    // 1. Style & Shot
+    prompt += `${cleanVal(storyStyle)}, ${scene.shotType} of `;
 
     // 2. Character
     if (char) {
@@ -196,13 +274,13 @@ const PromptBuilder: React.FC<PromptBuilderProps> = ({
         prompt += `Character is showing ${getIntensityDescription(intensity).split(' ')[0]}. `; // Use only Thai part
     }
 
-    // 5. Dialogue (Optional)
+    // 5. Dialogue (Optional) - Note: Veo doesn't generate audio from this, but context helps visual emotion
     if (scene.dialogue?.trim()) {
-      prompt += `Character says "${scene.dialogue.trim()}". `;
+      prompt += `Character is speaking with expression matching: "${scene.dialogue.trim()}". `;
     }
 
     // 6. Technical
-    prompt += `highly detailed, 4k`;
+    prompt += `highly detailed, 4k, ${cleanVal(storyTone)} tone.`;
     
     return prompt.trim();
   };
@@ -237,9 +315,18 @@ const PromptBuilder: React.FC<PromptBuilderProps> = ({
       {/* Left Column: Story Setup */}
       <div className="w-full lg:w-1/3 space-y-6">
         <div className="bg-slate-900 border border-slate-700 rounded-xl p-6 shadow-lg">
-          <h3 className="text-emerald-400 font-bold uppercase text-xs tracking-wider mb-4 flex items-center gap-2">
-            <Film size={16} /> Story Setup
-          </h3>
+          <div className="flex justify-between items-center mb-4">
+             <h3 className="text-emerald-400 font-bold uppercase text-xs tracking-wider flex items-center gap-2">
+                <Film size={16} /> Story Setup
+             </h3>
+             <button 
+                onClick={handleRandomizeSettings}
+                className="text-xs flex items-center gap-1 text-slate-400 hover:text-white bg-slate-800 hover:bg-slate-700 px-2 py-1 rounded transition-colors"
+                title="สุ่มการตั้งค่าทั้งหมด (ตัวละคร, บรรยากาศ, สไตล์)"
+             >
+                <RefreshCw size={12} /> สุ่ม (Random)
+             </button>
+          </div>
           
           <div className="space-y-4">
             <div>
@@ -387,11 +474,105 @@ const PromptBuilder: React.FC<PromptBuilderProps> = ({
                             background: `linear-gradient(to right, #10b981 0%, #f59e0b 50%, #ef4444 100%)`
                         }}
                     />
-                    <div className="flex justify-between text-[8px] text-slate-600 mt-1 uppercase">
-                        <span>Normal</span>
-                        <span>Serious</span>
-                        <span>Extreme</span>
+               </div>
+            </div>
+
+            {/* NEW: Detailed Story Context */}
+            <div className="bg-slate-950/50 p-3 rounded-lg border border-slate-800 space-y-3">
+               <h4 className="text-xs font-bold text-slate-400 uppercase flex items-center gap-2">
+                  <Settings2 size={12}/> รายละเอียดการเล่าเรื่อง (Detailed Context)
+               </h4>
+               
+               <div>
+                   <label className="text-[10px] text-slate-500 block mb-1 flex items-center gap-1">
+                      <Languages size={10}/> ภาษา/สำเนียง (Dialect)
+                   </label>
+                   <select
+                      value={dialect} onChange={e => setDialect(e.target.value)}
+                      className="w-full bg-slate-900 border border-slate-700 rounded text-xs text-white p-1.5 outline-none"
+                   >
+                       {combinedDialects.length > 0 ? (
+                         combinedDialects.map(d => <option key={d} value={d}>{d}</option>)
+                       ) : <option value="">(ไม่มีตัวเลือก)</option>}
+                   </select>
+               </div>
+               
+               <div>
+                   <label className="text-[10px] text-slate-500 block mb-1 flex items-center gap-1">
+                      <MessageSquare size={10}/> น้ำเสียงการเล่า (Story Tone)
+                   </label>
+                   <select
+                      value={storyTone} onChange={e => setStoryTone(e.target.value)}
+                      className="w-full bg-slate-900 border border-slate-700 rounded text-xs text-white p-1.5 outline-none"
+                   >
+                       {combinedTones.length > 0 ? (
+                         combinedTones.map(t => <option key={t} value={t}>{t}</option>)
+                       ) : <option value="">(ไม่มีตัวเลือก)</option>}
+                   </select>
+               </div>
+
+               <div>
+                   <label className="text-[10px] text-slate-500 block mb-1 flex items-center gap-1">
+                      <Clapperboard size={10}/> สไตล์การกำกับ (Directing Style)
+                   </label>
+                   <select
+                      value={storyStyle} onChange={e => setStoryStyle(e.target.value)}
+                      className="w-full bg-slate-900 border border-slate-700 rounded text-xs text-white p-1.5 outline-none"
+                   >
+                       {combinedStyles.length > 0 ? (
+                         combinedStyles.map(s => <option key={s} value={s}>{s}</option>)
+                       ) : <option value="">(ไม่มีตัวเลือก)</option>}
+                   </select>
+               </div>
+
+               {/* Custom Option Management UI */}
+               <div className="mt-4 pt-4 border-t border-slate-800">
+                  <h5 className="text-[10px] font-bold text-slate-400 uppercase mb-2 flex items-center gap-1">
+                    <Filter size={10} /> จัดการตัวเลือกเอง (Custom Options)
+                  </h5>
+                  <div className="space-y-2">
+                    <div>
+                      <select 
+                        value={selectedManageCategory}
+                        onChange={(e) => setSelectedManageCategory(e.target.value)}
+                        className="w-full bg-slate-900 border border-slate-700 rounded text-[10px] text-white p-1 outline-none mb-1"
+                      >
+                        {STORY_ATTRIBUTE_KEYS.map(key => (
+                          <option key={key} value={key}>{STORY_ATTRIBUTE_CATEGORIES_MAP[key]}</option>
+                        ))}
+                      </select>
                     </div>
+                    <div className="flex gap-1">
+                      <input 
+                        type="text" 
+                        value={newCustomOptionValue}
+                        onChange={e => setNewCustomOptionValue(e.target.value)}
+                        placeholder="เพิ่มตัวเลือกใหม่..."
+                        className="flex-1 bg-slate-900 border border-slate-700 rounded text-[10px] text-white p-1 outline-none"
+                      />
+                      <button 
+                        onClick={handleAddCustomOptionClick}
+                        className="bg-emerald-600 hover:bg-emerald-500 text-white p-1 rounded transition-colors"
+                      >
+                        <Plus size={14}/>
+                      </button>
+                    </div>
+                    
+                    {/* List of custom options for selected category */}
+                    <div className="max-h-24 overflow-y-auto pr-1 space-y-1 mt-2">
+                      {customOptions.filter(opt => opt.attributeKey === selectedManageCategory).map(opt => (
+                        <div key={opt.id} className="flex justify-between items-center bg-slate-900 border border-slate-800 rounded px-2 py-1">
+                          <span className="text-slate-300 text-[10px] truncate">{opt.value}</span>
+                          <button 
+                            onClick={() => onRemoveCustomOption(opt.id)}
+                            className="text-slate-500 hover:text-red-400"
+                          >
+                            <Trash2 size={10}/>
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
                </div>
             </div>
 

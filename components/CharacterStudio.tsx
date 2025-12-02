@@ -1,5 +1,4 @@
 
-
 import React, { useState, useEffect } from 'react';
 import { Character, CharacterAttributes, CustomOption, ApiKey } from '../types';
 import { generateCharacterImage, handleAistudioApiKeySelection } from '../services/geminiService';
@@ -27,7 +26,8 @@ const EYES_COLORS = ['Brown (น้ำตาล)', 'Blue (ฟ้า)', 'Green (�
 
 
 // Map of attribute keys to their Thai display names for custom option categories
-const ATTRIBUTE_CATEGORIES_MAP: { [K in keyof CharacterAttributes | 'environmentElement']: string } = {
+// REMOVED: environmentElement
+const ATTRIBUTE_CATEGORIES_MAP: { [K in keyof CharacterAttributes]: string } = {
   gender: 'เพศ (Gender)',
   ageGroup: 'กลุ่มอายุ (Age Group)',
   skinTone: 'สีผิว (Skin Tone)',
@@ -46,19 +46,20 @@ const ATTRIBUTE_CATEGORIES_MAP: { [K in keyof CharacterAttributes | 'environment
   weapons: 'อาวุธ/ของถือ (Weapons)',
   personality: 'บุคลิกภาพ (Personality)',
   currentMood: 'อารมณ์ปัจจุบัน (Current Mood)',
-  environmentElement: 'องค์ประกอบสภาพแวดล้อม (Environment Element)', // NEW
 };
 
 // Keys for attributes that are fully managed via custom options
-const CHARACTER_ATTRIBUTE_KEYS_FOR_CUSTOM_OPTIONS: (keyof CharacterAttributes | 'environmentElement')[] = [
+// REMOVED: environmentElement
+const CHARACTER_ATTRIBUTE_KEYS_FOR_CUSTOM_OPTIONS: (keyof CharacterAttributes)[] = [
   'gender', 'ageGroup', 'skinTone', 'faceShape', 'eyeShape', 'eyeColor',
   'hairStyle', 'hairColor', 'hairTexture', 'facialFeatures', 'bodyType',
   'clothingStyle', 'clothingColor', 'clothingDetail', 'accessories', 'weapons',
-  'personality', 'currentMood', 'environmentElement', // NEW
+  'personality', 'currentMood',
 ];
 
 // Map of attribute keys to their placeholder text suggestions for adding custom options
-const ATTRIBUTE_PLACEHOLDER_MAP: { [K in keyof CharacterAttributes | 'environmentElement']: string } = {
+// REMOVED: environmentElement
+const ATTRIBUTE_PLACEHOLDER_MAP: { [K in keyof CharacterAttributes]: string } = {
   gender: "เช่น 'เพศหุ่นยนต์', 'เพศเอเลี่ยน'",
   ageGroup: "เช่น 'วัยทารกวิวัฒนาการ', 'วัยผู้ใหญ่โบราณ'",
   skinTone: "เช่น 'ผิวสีเงิน', 'ผิวสีฟ้าอ่อน'",
@@ -77,7 +78,6 @@ const ATTRIBUTE_PLACEHOLDER_MAP: { [K in keyof CharacterAttributes | 'environmen
   weapons: "เช่น 'ดาบแสง', 'ปืนเลเซอร์'",
   personality: "เช่น 'ขี้เล่นแต่จริงจัง', 'เงียบขรึมแต่ฉลาด'",
   currentMood: "เช่น 'คลุ้มคลั่ง', 'สงบนิ่งอย่างประหลาด'",
-  environmentElement: "เช่น 'ไก่', 'ช้าง', 'ชาวบ้านจำนวนมาก'", // NEW
 };
 
 
@@ -88,7 +88,7 @@ const CharacterStudio: React.FC<CharacterStudioProps> = ({ characters, onSaveCha
   const [newCustomOptionValue, setNewCustomOptionValue] = useState('');
   
   // selectedManageCategory will now also serve as the category for new additions
-  const [selectedManageCategory, setSelectedManageCategory] = useState<keyof CharacterAttributes | 'environmentElement'>( // UPDATED
+  const [selectedManageCategory, setSelectedManageCategory] = useState<keyof CharacterAttributes>( 
     CHARACTER_ATTRIBUTE_KEYS_FOR_CUSTOM_OPTIONS[0] // Default to the first category
   );
 
@@ -272,24 +272,27 @@ const CharacterStudio: React.FC<CharacterStudioProps> = ({ characters, onSaveCha
     };
     
     // Get combined options for randomization from customOptions
-    const combinedGenders = getCombinedOptions('gender');
-    const combinedAgeGroups = getCombinedOptions('ageGroup');
-    const combinedSkinTones = getCombinedOptions('skinTone');
-    const combinedFaceShapes = getCombinedOptions('faceShape');
-    const combinedEyeShapes = getCombinedOptions('eyeShape');
-    const combinedEyeColors = getCombinedOptions('eyeColor');
-    const combinedHairStyles = getCombinedOptions('hairStyle');
-    const combinedHairColors = getCombinedOptions('hairColor');
-    const combinedHairTextures = getCombinedOptions('hairTexture');
-    const combinedFacialFeatures = getCombinedTagOptions('facialFeatures');
-    const combinedBodyTypes = getCombinedOptions('bodyType');
-    const combinedClothingStyles = getCombinedOptions('clothingStyle');
-    const combinedClothingColors = getCombinedOptions('clothingColor');
-    const combinedClothingDetails = getCombinedOptions('clothingDetail');
-    const combinedAccessories = getCombinedTagOptions('accessories');
-    const combinedWeapons = getCombinedTagOptions('weapons');
-    const combinedPersonalities = getCombinedOptions('personality');
-    const combinedMoods = getCombinedOptions('currentMood');
+    // Note: getCombinedOptions helper is removed, doing inline filter.
+    const getOpts = (k: keyof CharacterAttributes) => customOptions.filter(o => o.attributeKey === k).map(o => o.value);
+
+    const combinedGenders = getOpts('gender');
+    const combinedAgeGroups = getOpts('ageGroup');
+    const combinedSkinTones = getOpts('skinTone');
+    const combinedFaceShapes = getOpts('faceShape');
+    const combinedEyeShapes = getOpts('eyeShape');
+    const combinedEyeColors = getOpts('eyeColor');
+    const combinedHairStyles = getOpts('hairStyle');
+    const combinedHairColors = getOpts('hairColor');
+    const combinedHairTextures = getOpts('hairTexture');
+    const combinedFacialFeatures = getOpts('facialFeatures');
+    const combinedBodyTypes = getOpts('bodyType');
+    const combinedClothingStyles = getOpts('clothingStyle');
+    const combinedClothingColors = getOpts('clothingColor');
+    const combinedClothingDetails = getOpts('clothingDetail');
+    const combinedAccessories = getOpts('accessories');
+    const combinedWeapons = getOpts('weapons');
+    const combinedPersonalities = getOpts('personality');
+    const combinedMoods = getOpts('currentMood');
 
 
     setForm(prev => ({
@@ -348,14 +351,14 @@ const CharacterStudio: React.FC<CharacterStudioProps> = ({ characters, onSaveCha
   };
 
   // Helper to get options from customOptions prop based on attribute key
-  const getCombinedOptions = (key: keyof CharacterAttributes | 'environmentElement') => { // UPDATED
+  const getCombinedOptions = (key: keyof CharacterAttributes) => { 
     return customOptions
       .filter(opt => opt.attributeKey === key)
       .map(opt => opt.value);
   };
 
   // Helper to get tag options from customOptions prop based on attribute key
-  const getCombinedTagOptions = (key: keyof CharacterAttributes | 'environmentElement') => { // UPDATED
+  const getCombinedTagOptions = (key: keyof CharacterAttributes) => {
     return customOptions
       .filter(opt => opt.attributeKey === key)
       .map(opt => opt.value);
@@ -425,11 +428,6 @@ const CharacterStudio: React.FC<CharacterStudioProps> = ({ characters, onSaveCha
   };
 
   // Determine if the "Generate Image" button should be interactable
-  // Button is disabled if:
-  // 1. Image is currently generating
-  // 2. Aistudio key check is not completed yet
-  // 3. (If Aistudio is available) Aistudio key has not been selected
-  // 4. No active API key has been provided via ApiKeyManager (activeCharacterApiKey is null)
   const isGenerateImageButtonDisabled = isImageGenerating || !aistudioKeyCheckCompleted || (aistudioAvailable && !aistudioKeySelected) || !activeCharacterApiKey?.key;
 
 
@@ -708,7 +706,7 @@ const CharacterStudio: React.FC<CharacterStudioProps> = ({ characters, onSaveCha
                 <label className="block text-slate-400 text-xs font-semibold mb-1">เลือกหมวดหมู่</label>
                 <select 
                   value={selectedManageCategory}
-                  onChange={(e) => setSelectedManageCategory(e.target.value as keyof CharacterAttributes | 'environmentElement')} // UPDATED
+                  onChange={(e) => setSelectedManageCategory(e.target.value as keyof CharacterAttributes)} 
                   className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm focus:border-emerald-500 outline-none"
                 >
                   {CHARACTER_ATTRIBUTE_KEYS_FOR_CUSTOM_OPTIONS.map(key => (

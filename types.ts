@@ -37,7 +37,8 @@ export interface CustomOption {
   attributeKey: 'gender' | 'ageGroup' | 'skinTone' | 'faceShape' | 'eyeShape' | 'eyeColor' |
                 'hairStyle' | 'hairColor' | 'hairTexture' | 'facialFeatures' | 'bodyType' |
                 'clothingStyle' | 'clothingColor' | 'clothingDetail' | 'accessories' |
-                'weapons' | 'personality' | 'currentMood' | 'environmentElement'; // New attribute key
+                'weapons' | 'personality' | 'currentMood' | 'environmentElement' |
+                'storyDialect' | 'storyTone' | 'storyStyle'; // New attribute keys for Storyboard
 }
 
 // Character Studio Types
