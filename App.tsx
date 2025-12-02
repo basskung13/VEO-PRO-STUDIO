@@ -1,17 +1,14 @@
-
-
 import React, { useState, useEffect } from 'react';
 import AccountBar from './components/AccountBar';
 import VideoHistory from './components/VideoHistory';
-import AccountSettingsModal from './components/AccountSettingsModal';
+import GlobalSettingsModal from './components/GlobalSettingsModal';
 import PromptBuilder from './components/PromptBuilder';
-import ApiKeyManager from './components/ApiKeyManager';
 import CharacterStudio from './components/CharacterStudio';
-import LoginScreen from './components/LoginScreen'; // New import
-import SignupScreen from './components/SignupScreen'; // New import
+import LoginScreen from './components/LoginScreen';
+import SignupScreen from './components/SignupScreen';
 import { constructVeoPrompt, openGeminiWeb } from './services/geminiService';
 import { HistoryItem, AspectRatio, AccountUsage, UserProfile, ApiKey, CustomOption, Character, LoggedInUser } from './types';
-import { Sparkles, ExternalLink, Command, AlertTriangle, ChevronDown, Video, User, Key } from 'lucide-react';
+import { Sparkles, Video, User, Key, AlertTriangle, Loader2 } from 'lucide-react'; // Added Loader2
 
 const STYLES = [
   'Cinematic',
@@ -170,6 +167,7 @@ const DEFAULT_CUSTOM_OPTIONS_DATA: CustomOption[] = [
   { id: 'opt-w3', value: 'Bow (ธนู)', attributeKey: 'weapons' },
   { id: 'opt-w4', value: 'Magic Wand (ไม้กายสิทธิ์)', attributeKey: 'weapons' },
   { id: 'opt-w5', value: 'Knife (มีด)', attributeKey: 'weapons' },
+  // Fix: Corrected the attributeKey for 'ขวาน' from an invalid string literal to 'weapons'.
   { id: 'opt-w6', value: 'Axe (ขวาน)', attributeKey: 'weapons' },
   { id: 'opt-w7', value: 'Shield (โล่)', attributeKey: 'weapons' },
   { id: 'opt-w8', value: 'Staff (ไม้เท้า)', attributeKey: 'weapons' },
@@ -193,6 +191,17 @@ const DEFAULT_CUSTOM_OPTIONS_DATA: CustomOption[] = [
   { id: 'opt-m7', value: 'Confused (สับสน)', attributeKey: 'currentMood' },
   { id: 'opt-m8', value: 'Excited (ตื่นเต้น)', attributeKey: 'currentMood' },
   { id: 'opt-m9', value: 'Determined (มุ่งมั่น)', attributeKey: 'currentMood' },
+  // Environment Elements - NEW
+  { id: 'opt-ee1', value: 'ไก่ (Chicken)', attributeKey: 'environmentElement' },
+  { id: 'opt-ee2', value: 'ช้าง (Elephant)', attributeKey: 'environmentElement' },
+  { id: 'opt-ee3', value: 'ม้า (Horse)', attributeKey: 'environmentElement' },
+  { id: 'opt-ee4', value: 'วัว (Cow)', attributeKey: 'environmentElement' },
+  { id: 'opt-ee5', value: 'ควาย (Buffalo)', attributeKey: 'environmentElement' },
+  { id: 'opt-ee6', value: 'ชาวบ้านจำนวนมาก (Many Villagers)', attributeKey: 'environmentElement' },
+  { id: 'opt-ee7', value: 'แม่ค้า (Vendor)', attributeKey: 'environmentElement' },
+  { id: 'opt-ee8', value: 'ตลาดสด (Fresh Market)', attributeKey: 'environmentElement' },
+  { id: 'opt-ee9', value: 'วัดเก่า (Old Temple)', attributeKey: 'environmentElement' },
+  { id: 'opt-ee10', value: 'ภูเขา (Mountain)', attributeKey: 'environmentElement' },
 ];
 
 type View = 'generator' | 'characters';
@@ -202,7 +211,8 @@ const App: React.FC = () => {
   
   // --- Authentication State ---
   const [loggedInUser, setLoggedInUser] = useState<LoggedInUser | null>(null);
-  const [showAuthScreen, setShowAuthScreen] = useState<'login' | 'signup' | 'none'>('login');
+  const [showAuthScreen, setShowAuthScreen] = useState<'login' | 'signup' | 'none'>('none'); // Default to 'none' for loading initial check
+  const [isAuthCheckComplete, setIsAuthCheckComplete] = useState(false); // New state for auth check completion
   // ----------------------------
 
   // Account & Quota Management
@@ -210,20 +220,28 @@ const App: React.FC = () => {
   const [activeSlotCount, setActiveSlotCount] = useState<number>(2);
   const [accountUsage, setAccountUsage] = useState<AccountUsage>({});
   const [userProfiles, setUserProfiles] = useState<Record<number, UserProfile>>({});
-  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   
-  // API Key Management
+  // New: Global settings modal state
+  const [isGlobalSettingsOpen, setIsGlobalSettingsOpen] = useState(false);
+  
+  // API Key Management - now separated for different purposes
   const [apiKeys, setApiKeys] = useState<ApiKey[]>([]);
-  const [activeKeyId, setActiveKeyId] = useState<string | null>(null);
-  const [isKeyManagerOpen, setIsKeyManagerOpen] = useState(false);
+  const [activeStoryApiKeyId, setActiveStoryApiKeyId] = useState<string | null>(null);
+  const [activeCharacterApiKeyId, setActiveCharacterApiKeyId] = useState<string | null>(null);
 
   // Characters
   const [characters, setCharacters] = useState<Character[]>([]);
+  // New: State for characters selected for storyboard
+  const [selectedCharactersForStoryboard, setSelectedCharactersForStoryboard] = useState<string[]>([]);
+  // New: State for max characters per scene and number of scenes
+  const [maxCharactersPerScene, setMaxCharactersPerScene] = useState<number>(1);
+  const [numberOfScenes, setNumberOfScenes] = useState<number>(3);
+
 
   // Custom Options
   const [customOptions, setCustomOptions] = useState<CustomOption[]>([]);
   
-  const MAX_DAILY_COUNT = 2;
+  const MAX_DAILY_COUNT = 2; // User requested limit: 2 videos per account per day
 
   const [history, setHistory] = useState<HistoryItem[]>([]);
   const [lastCopied, setLastCopied] = useState<boolean>(false);
@@ -235,17 +253,26 @@ const App: React.FC = () => {
       const savedProfiles = localStorage.getItem('veo_user_profiles');
       const savedSlotCount = localStorage.getItem('veo_active_slot_count');
       const savedApiKeys = localStorage.getItem('veo_api_keys');
-      const savedActiveKey = localStorage.getItem('veo_active_key_id');
+      const savedActiveStoryKeyId = localStorage.getItem('veo_active_story_key_id');
+      const savedActiveCharacterKeyId = localStorage.getItem('veo_active_character_key_id');
       const savedCharacters = localStorage.getItem('veo_characters');
-      const savedLoggedInUser = localStorage.getItem('veo_logged_in_user'); // New: Load loggedInUser
-      const savedCustomOptions = localStorage.getItem('veo_custom_options'); // New: Load custom options
+      const savedLoggedInUser = localStorage.getItem('veo_logged_in_user');
+      const savedCustomOptions = localStorage.getItem('veo_custom_options');
+      const savedSelectedChars = localStorage.getItem('veo_selected_story_chars');
+      const savedMaxCharsPerScene = localStorage.getItem('veo_max_chars_per_scene');
+      const savedNumScenes = localStorage.getItem('veo_num_scenes');
       
       if (savedUsage) setAccountUsage(JSON.parse(savedUsage));
       if (savedProfiles) setUserProfiles(JSON.parse(savedProfiles));
       if (savedSlotCount) setActiveSlotCount(parseInt(savedSlotCount, 10));
       if (savedApiKeys) setApiKeys(JSON.parse(savedApiKeys));
-      if (savedActiveKey) setActiveKeyId(savedActiveKey);
+      if (savedActiveStoryKeyId) setActiveStoryApiKeyId(savedActiveStoryKeyId);
+      if (savedActiveCharacterKeyId) setActiveCharacterApiKeyId(savedActiveCharacterKeyId);
       if (savedCharacters) setCharacters(JSON.parse(savedCharacters));
+      if (savedSelectedChars) setSelectedCharactersForStoryboard(JSON.parse(savedSelectedChars));
+      if (savedMaxCharsPerScene) setMaxCharactersPerScene(parseInt(savedMaxCharsPerScene, 10));
+      if (savedNumScenes) setNumberOfScenes(parseInt(savedNumScenes, 10));
+
 
       // NEW: Robustly load custom options
       if (savedCustomOptions) {
@@ -278,6 +305,8 @@ const App: React.FC = () => {
       setLoggedInUser(null);
       setShowAuthScreen('login');
       setCustomOptions(DEFAULT_CUSTOM_OPTIONS_DATA); // Also reset custom options if error
+    } finally {
+      setIsAuthCheckComplete(true); // Mark auth check as complete
     }
   }, []);
 
@@ -286,9 +315,13 @@ const App: React.FC = () => {
   useEffect(() => { localStorage.setItem('veo_user_profiles', JSON.stringify(userProfiles)); }, [userProfiles]);
   useEffect(() => { localStorage.setItem('veo_active_slot_count', activeSlotCount.toString()); }, [activeSlotCount]);
   useEffect(() => { localStorage.setItem('veo_api_keys', JSON.stringify(apiKeys)); }, [apiKeys]);
-  useEffect(() => { if(activeKeyId) localStorage.setItem('veo_active_key_id', activeKeyId); }, [activeKeyId]);
+  useEffect(() => { if(activeStoryApiKeyId) localStorage.setItem('veo_active_story_key_id', activeStoryApiKeyId); }, [activeStoryApiKeyId]);
+  useEffect(() => { if(activeCharacterApiKeyId) localStorage.setItem('veo_active_character_key_id', activeCharacterApiKeyId); }, [activeCharacterApiKeyId]);
   useEffect(() => { localStorage.setItem('veo_characters', JSON.stringify(characters)); }, [characters]);
-  useEffect(() => { localStorage.setItem('veo_custom_options', JSON.stringify(customOptions)); }, [customOptions]); // Save custom options
+  useEffect(() => { localStorage.setItem('veo_custom_options', JSON.stringify(customOptions)); }, [customOptions]);
+  useEffect(() => { localStorage.setItem('veo_selected_story_chars', JSON.stringify(selectedCharactersForStoryboard)); }, [selectedCharactersForStoryboard]);
+  useEffect(() => { localStorage.setItem('veo_max_chars_per_scene', maxCharactersPerScene.toString()); }, [maxCharactersPerScene]);
+  useEffect(() => { localStorage.setItem('veo_num_scenes', numberOfScenes.toString()); }, [numberOfScenes]);
   
   // New: Save loggedInUser to localStorage
   useEffect(() => {
@@ -337,26 +370,44 @@ const App: React.FC = () => {
     setCustomOptions(prev => prev.filter(opt => opt.id !== id));
   };
 
-  // Fix: Define handleDirectLaunch function
-  const handleDirectLaunch = (prompt: string) => {
-    // Increment usage count for the current account
-    setAccountUsage(prev => ({
-      ...prev,
-      [currentAccountIndex]: (prev[currentAccountIndex] || 0) + 1,
-    }));
+  // NEW: Automatic account selection and launch
+  const handleGenerateSceneVideo = (prompt: string) => {
+    // Find the next available account
+    let nextAccountIndex = -1;
+    for (let i = 0; i < activeSlotCount; i++) {
+      if ((accountUsage[i] || 0) < MAX_DAILY_COUNT) {
+        nextAccountIndex = i;
+        break;
+      }
+    }
 
-    // Construct the prompt config and open Gemini Web
-    const config = {
-      prompt: prompt,
-      // Fix: Explicitly cast '16:9' to AspectRatio type
-      aspectRatio: '16:9' as AspectRatio, // Default aspect ratio, can be refined if needed
-    };
-    const finalPrompt = constructVeoPrompt(config);
-    openGeminiWeb(currentAccountIndex); // Open Gemini Web in the correct account context
-    addToHistory(prompt, finalPrompt); // Add to history
+    if (nextAccountIndex !== -1) {
+      // Set the found account as current
+      setCurrentAccountIndex(nextAccountIndex);
+      // Increment usage count for the selected account
+      setAccountUsage(prev => ({
+        ...prev,
+        [nextAccountIndex]: (prev[nextAccountIndex] || 0) + 1,
+      }));
+
+      // Construct the prompt config and open Gemini Web
+      const config = {
+        prompt: prompt,
+        aspectRatio: '16:9' as AspectRatio, // Default aspect ratio, can be refined if needed
+      };
+      const finalPrompt = constructVeoPrompt(config);
+      openGeminiWeb(nextAccountIndex); // Open Gemini Web in the correct account context
+      addToHistory(prompt, finalPrompt); // Add to history
+    } else {
+      // All accounts are at their limit
+      alert("โควต้าการสร้างวิดีโอของทุกบัญชีเต็มแล้วสำหรับวันนี้ กรุณารอวันพรุ่งนี้หรือเคลียร์โควต้าบัญชี");
+    }
   };
 
-  const activeApiKeyObj = apiKeys.find(k => k.id === activeKeyId) || null;
+  // Resolved API key objects for passing to components
+  const activeStoryApiKeyObj = apiKeys.find(k => k.id === activeStoryApiKeyId) || null;
+  const activeCharacterApiKeyObj = apiKeys.find(k => k.id === activeCharacterApiKeyId) || null;
+  
   const currentUsage = accountUsage[currentAccountIndex] || 0;
   const isLimitReached = currentUsage >= MAX_DAILY_COUNT;
 
@@ -391,6 +442,18 @@ const App: React.FC = () => {
   };
   // ------------------------------------------------
 
+  // If auth check is not complete, show a loading screen
+  if (!isAuthCheckComplete) {
+    return (
+      <div className="min-h-screen bg-slate-950 flex items-center justify-center font-sans">
+        <div className="flex flex-col items-center text-slate-400">
+          <Loader2 size={48} className="animate-spin mb-4" />
+          <p className="text-lg">กำลังโหลด...</p>
+        </div>
+      </div>
+    );
+  }
+
   // If not logged in, show auth screens
   if (!loggedInUser) {
     return (
@@ -414,37 +477,38 @@ const App: React.FC = () => {
         usageMap={accountUsage}
         userProfiles={userProfiles}
         maxCount={MAX_DAILY_COUNT}
-        onAccountSelect={setCurrentAccountIndex}
+        onAccountSelect={setCurrentAccountIndex} // Still needed for display in dropdown
         onResetCurrent={resetCurrentAccount}
         onUpdateProfileName={updateProfileName}
-        onOpenSettings={() => setIsSettingsOpen(true)}
-        loggedInUser={loggedInUser} // Pass loggedInUser
-        onLogout={handleLogout} // Pass logout handler
+        onOpenSettings={() => setIsGlobalSettingsOpen(true)}
+        loggedInUser={loggedInUser}
+        onLogout={handleLogout}
       />
 
-      <AccountSettingsModal 
-        isOpen={isSettingsOpen}
-        onClose={() => setIsSettingsOpen(false)}
+      <GlobalSettingsModal
+        isOpen={isGlobalSettingsOpen}
+        onClose={() => setIsGlobalSettingsOpen(false)}
+        // Account Management Props
         userProfiles={userProfiles}
         onUpdateProfile={updateProfile}
         activeSlotCount={activeSlotCount}
         onUpdateSlotCount={setActiveSlotCount}
-      />
-
-      <ApiKeyManager
-        isOpen={isKeyManagerOpen}
-        onClose={() => setIsKeyManagerOpen(false)}
+        // API Key Management Props
         apiKeys={apiKeys}
-        activeKeyId={activeKeyId}
-        onAddKey={(k) => {
-          setApiKeys(prev => [...prev, k]);
-          if (!activeKeyId) setActiveKeyId(k.id);
-        }}
+        activeStoryApiKeyId={activeStoryApiKeyId}
+        activeCharacterApiKeyId={activeCharacterApiKeyId}
+        onAddKey={(k) => setApiKeys(prev => [...prev, k])}
         onRemoveKey={(id) => {
           setApiKeys(prev => prev.filter(k => k.id !== id));
-          if (activeKeyId === id) setActiveKeyId(null);
+          if (activeStoryApiKeyId === id) setActiveStoryApiKeyId(null);
+          if (activeCharacterApiKeyId === id) setActiveCharacterApiKeyId(null);
         }}
-        onSelectKey={setActiveKeyId}
+        onSelectStoryKey={setActiveStoryApiKeyId}
+        onSelectCharacterKey={setActiveCharacterApiKeyId}
+        // Custom Options Management
+        customOptions={customOptions}
+        onAddCustomOption={handleAddCustomOption}
+        onRemoveCustomOption={handleRemoveCustomOption}
       />
 
       {/* Main Navigation */}
@@ -483,8 +547,8 @@ const App: React.FC = () => {
                     customOptions={customOptions}
                     onAddCustomOption={handleAddCustomOption}
                     onRemoveCustomOption={handleRemoveCustomOption}
-                    activeApiKey={activeApiKeyObj} // Pass active API key
-                    onOpenApiKeyManager={() => setIsKeyManagerOpen(true)} // Pass handler to open API key manager
+                    activeCharacterApiKey={activeCharacterApiKeyObj}
+                    onOpenApiKeyManager={() => setIsGlobalSettingsOpen(true)}
                  />
              </div>
         ) : (
@@ -505,11 +569,11 @@ const App: React.FC = () => {
                     </h2>
 
                     <button 
-                        onClick={() => setIsKeyManagerOpen(true)}
-                        className={`text-xs flex items-center gap-2 px-3 py-1.5 rounded-lg border transition-all ${activeApiKeyObj ? 'bg-emerald-900/20 text-emerald-400 border-emerald-500/30' : 'bg-amber-900/10 text-amber-500 border-amber-500/30 hover:bg-amber-900/20'}`}
+                        onClick={() => setIsGlobalSettingsOpen(true)}
+                        className={`text-xs flex items-center gap-2 px-3 py-1.5 rounded-lg border transition-all ${activeStoryApiKeyObj ? 'bg-emerald-900/20 text-emerald-400 border-emerald-500/30' : 'bg-amber-900/10 text-amber-500 border-amber-500/30 hover:bg-amber-900/20'}`}
                     >
                         <Key size={12} />
-                        {activeApiKeyObj ? activeApiKeyObj.name : 'ตั้งค่า API Key'}
+                        {activeStoryApiKeyObj ? activeStoryApiKeyObj.name : 'ตั้งค่า API Key (Story)'}
                     </button>
                 </div>
 
@@ -517,10 +581,18 @@ const App: React.FC = () => {
                     {/* Storyboard Interface is now the ONLY interface */}
                     <PromptBuilder 
                         characters={characters}
-                        activeApiKey={activeApiKeyObj}
-                        onOpenApiKeyManager={() => setIsKeyManagerOpen(true)}
-                        onLaunchScene={handleDirectLaunch}
+                        activeStoryApiKey={activeStoryApiKeyObj}
+                        onOpenApiKeyManager={() => setIsGlobalSettingsOpen(true)}
+                        onGenerateSceneVideo={handleGenerateSceneVideo}
                         onNavigateToCharacterStudio={() => setCurrentView('characters')}
+                        // New props for storyboard generation control
+                        selectedCharactersForStoryboard={selectedCharactersForStoryboard}
+                        onSelectCharactersForStoryboard={setSelectedCharactersForStoryboard}
+                        maxCharactersPerScene={maxCharactersPerScene}
+                        onSetMaxCharactersPerScene={setMaxCharactersPerScene}
+                        numberOfScenes={numberOfScenes}
+                        onSetNumberOfScenes={setNumberOfScenes}
+                        customOptions={customOptions} // Pass custom options for environment elements
                     />
                 </div>
                 </div>

@@ -1,16 +1,23 @@
-
 import React, { useState } from 'react';
-import { Scene, Character, ApiKey, AspectRatio } from '../types';
-import { generateStoryboardFromPlot, generateVeoVideo, generateCreativePrompt } from '../services/geminiService'; // Import generateCreativePrompt
-// Add missing Lucide React icons
-import { Film, Sun, Mic2, Wand2, AlertCircle, Video, Plus, Trash2, Copy, MonitorPlay } from 'lucide-react';
+import { Scene, Character, ApiKey, AspectRatio, CustomOption } from '../types';
+import { generateStoryboardFromPlot, generateCreativePrompt, handleAistudioApiKeySelection } from '../services/geminiService';
+// Fix: Added User and Check icons to the import statement.
+import { Film, Sun, Mic2, Wand2, AlertCircle, Video, Plus, Trash2, Copy, MonitorPlay, Key, Link, User, Check } from 'lucide-react'; // Added Link icon for billing
 
 interface PromptBuilderProps {
   characters: Character[];
-  activeApiKey: ApiKey | null; // Keep activeApiKey for UI display purposes if needed, but not for API calls
+  activeStoryApiKey: ApiKey | null;
   onOpenApiKeyManager: () => void;
-  onLaunchScene: (prompt: string) => void;
-  onNavigateToCharacterStudio: () => void; // New prop for navigation
+  onGenerateSceneVideo: (prompt: string) => void; // Renamed from onLaunchScene
+  onNavigateToCharacterStudio: () => void;
+  // New props for storyboard generation control
+  selectedCharactersForStoryboard: string[]; // Character IDs
+  onSelectCharactersForStoryboard: (ids: string[]) => void;
+  maxCharactersPerScene: number;
+  onSetMaxCharactersPerScene: (count: number) => void;
+  numberOfScenes: number;
+  onSetNumberOfScenes: (count: number) => void;
+  customOptions: CustomOption[]; // For environment elements
 }
 
 const WEATHERS = ['Sunny (แดดจัด)', 'Cloudy (เมฆมาก)', 'Rainy (ฝนตก)', 'Stormy (พายุ)', 'Snowy (หิมะตก)', 'Foggy (หมอกหนา)', 'Windy (ลมแรง)'];
@@ -19,10 +26,17 @@ const LIGHTINGS = ['Natural (ธรรมชาติ)', 'Golden Hour (แสง
 
 const PromptBuilder: React.FC<PromptBuilderProps> = ({ 
   characters, 
-  activeApiKey, // This is now primarily for UI display, actual API calls use process.env.API_KEY
+  activeStoryApiKey,
   onOpenApiKeyManager,
-  onLaunchScene,
-  onNavigateToCharacterStudio // Destructure new prop
+  onGenerateSceneVideo, // Renamed prop
+  onNavigateToCharacterStudio,
+  selectedCharactersForStoryboard,
+  onSelectCharactersForStoryboard,
+  maxCharactersPerScene,
+  onSetMaxCharactersPerScene,
+  numberOfScenes,
+  onSetNumberOfScenes,
+  customOptions // Destructure customOptions
 }) => {
   const [plot, setPlot] = useState('');
   const [scenes, setScenes] = useState<Scene[]>([]);
@@ -37,18 +51,44 @@ const PromptBuilder: React.FC<PromptBuilderProps> = ({
 
   const cleanVal = (val: string) => val.split('(')[0].trim();
 
+  // Helper to get environment element options from customOptions
+  const getEnvironmentElementOptions = () => {
+    return customOptions
+      .filter(opt => opt.attributeKey === 'environmentElement')
+      .map(opt => opt.value);
+  };
+  const combinedEnvironmentElements = getEnvironmentElementOptions();
+
+  // Fix: Adjusted `toggleCharacterSelection` to pass the new array directly, aligning with `onSelectCharactersForStoryboard` prop type.
+  // Helper to toggle selected characters for storyboard
+  const toggleCharacterSelection = (charId: string) => {
+    const currentSelected = selectedCharactersForStoryboard;
+    const newSelected = currentSelected.includes(charId) 
+      ? currentSelected.filter(id => id !== charId) 
+      : [...currentSelected, charId];
+    onSelectCharactersForStoryboard(newSelected);
+  };
+
+
   const handleAiGenerate = async () => {
-    // For general AI generation, we still rely on the user having set an API key in the manager.
-    // The specific `window.aistudio` logic is only for image/video generation with specific models.
-    if (!activeApiKey) {
+    if (!activeStoryApiKey?.key) {
       onOpenApiKeyManager();
-      alert("กรุณาตั้งค่า API Key ก่อนใช้งาน AI Director ครับ");
+      alert("กรุณาตั้งค่า API Key สำหรับสร้างเรื่องราว (Story API Key) ก่อนใช้งาน AI Director ครับ");
       return;
     }
     if (!plot.trim()) {
       alert("กรุณาใส่เนื้อเรื่องย่อ (Plot) ก่อนครับ");
       return;
     }
+    if (numberOfScenes < 1 || numberOfScenes > 10) { // Example range
+      alert("จำนวนฉากต้องอยู่ระหว่าง 1 ถึง 10 ครับ");
+      return;
+    }
+    if (maxCharactersPerScene < 1 || maxCharactersPerScene > selectedCharactersForStoryboard.length || maxCharactersPerScene > 3) { // Example max
+      alert(`จำนวนตัวละครสูงสุดต่อฉากต้องอยู่ระหว่าง 1 ถึง ${Math.min(selectedCharactersForStoryboard.length, 3)} ครับ`);
+      return;
+    }
+
 
     setIsGenerating(true);
     try {
@@ -59,8 +99,16 @@ const PromptBuilder: React.FC<PromptBuilderProps> = ({
         intensity
       };
       
-      // Removed apiKeyFromProp argument as service function now uses process.env.API_KEY
-      const newScenes = await generateStoryboardFromPlot(plot, characters, moodContext); 
+      const selectedChars = characters.filter(c => selectedCharactersForStoryboard.includes(c.id));
+
+      const newScenes = await generateStoryboardFromPlot(
+        plot,
+        selectedChars,
+        maxCharactersPerScene,
+        numberOfScenes,
+        moodContext,
+        activeStoryApiKey.key
+      ); 
       setScenes(newScenes);
     } catch (e: any) {
       alert(e.message || "เกิดข้อผิดพลาดในการสร้างบท");
@@ -75,6 +123,8 @@ const PromptBuilder: React.FC<PromptBuilderProps> = ({
       characterId: 'none',
       action: '',
       setting: '',
+      dialogue: '', // Initialize dialogue
+      environmentElements: [], // Initialize environment elements
       shotType: 'Wide Angle',
       duration: '5s',
       generationStatus: 'idle'
@@ -86,8 +136,21 @@ const PromptBuilder: React.FC<PromptBuilderProps> = ({
     setScenes(scenes.filter(s => s.id !== id));
   };
 
-  const updateScene = (id: string, field: keyof Scene, value: string) => {
+  const updateScene = (id: string, field: keyof Scene, value: string | string[]) => {
     setScenes(scenes.map(s => s.id === id ? { ...s, [field]: value } : s));
+  };
+
+  const toggleEnvironmentElement = (sceneId: string, element: string) => {
+    setScenes(prevScenes => prevScenes.map(s => {
+      if (s.id === sceneId) {
+        const currentElements = s.environmentElements || [];
+        const newElements = currentElements.includes(element)
+          ? currentElements.filter(item => item !== element)
+          : [...currentElements, element];
+        return { ...s, environmentElements: newElements };
+      }
+      return s;
+    }));
   };
 
   const getIntensityDescription = (val: number) => {
@@ -101,7 +164,7 @@ const PromptBuilder: React.FC<PromptBuilderProps> = ({
     const char = characters.find(c => c.id === scene.characterId);
     let prompt = '';
     
-    // 1. Style/Shot
+    // 1. Shot Type/Angle
     prompt += `${scene.shotType} of `;
 
     // 2. Character
@@ -114,9 +177,15 @@ const PromptBuilder: React.FC<PromptBuilderProps> = ({
     // 3. Action
     prompt += `${scene.action} `;
 
-    // 4. Setting & Environment (Global Settings Applied)
+    // 4. Setting & Environment (Global Settings Applied + Scene specific elements)
     if (scene.setting) {
-      prompt += `in ${scene.setting}, `;
+      prompt += `in ${scene.setting}`;
+      if (scene.environmentElements && scene.environmentElements.length > 0) {
+        prompt += ` with ${scene.environmentElements.map(cleanVal).join(', ')}`;
+      }
+      prompt += `, `;
+    } else if (scene.environmentElements && scene.environmentElements.length > 0) {
+       prompt += `with ${scene.environmentElements.map(cleanVal).join(', ')}, `;
     }
     
     // Append Global Moods
@@ -127,63 +196,40 @@ const PromptBuilder: React.FC<PromptBuilderProps> = ({
         prompt += `Character is showing ${getIntensityDescription(intensity).split(' ')[0]}. `; // Use only Thai part
     }
 
-    // 5. Technical
+    // 5. Dialogue (Optional)
+    if (scene.dialogue?.trim()) {
+      prompt += `Character says "${scene.dialogue.trim()}". `;
+    }
+
+    // 6. Technical
     prompt += `highly detailed, 4k`;
     
     return prompt.trim();
   };
 
-  const handleGenerateVideo = async (sceneId: string) => {
-    if (!activeApiKey) { // Still use activeApiKey to determine if the user has *configured* an API Key for general purpose.
+  // Removed handleGenerateVideo as per user's request
+
+  const handleGenerateCreativePrompt = async () => {
+    if (!activeStoryApiKey?.key) {
       onOpenApiKeyManager();
-      alert("กรุณาตั้งค่า API Key ก่อนใช้งาน AI Director ครับ (ต้องใช้ API Key แบบชำระเงินสำหรับ Veo)");
+      alert("กรุณาตั้งค่า API Key สำหรับสร้างพรอมต์ (Story API Key) ก่อนใช้ AI สร้างพรอมต์");
       return;
     }
-    
-    // For Veo, we also need to explicitly check window.aistudio.hasSelectedApiKey()
-    // and potentially open the selection dialog.
-    if (window.aistudio && typeof window.aistudio.hasSelectedApiKey === 'function') {
-      try {
-        const hasAistudioKey = await window.aistudio.hasSelectedApiKey();
-        if (!hasAistudioKey) {
-          alert("สำหรับ Veo คุณต้องเลือก API Key ที่ผูกกับการเรียกเก็บเงินแล้ว ผ่านหน้าต่าง 'ตั้งค่า API Key' ที่จะเปิดขึ้นมา");
-          await window.aistudio.openSelectKey();
-          // Assume success and proceed as per guidelines
-        }
-      } catch (aistudioError) {
-        console.error("Error with aistudio.hasSelectedApiKey/openSelectKey:", aistudioError);
-        alert("เกิดข้อผิดพลาดในการตรวจสอบ/เลือก API Key จากระบบ (AISTUDIO). โปรดลองอีกครั้ง");
-        return;
-      }
-    } else {
-      alert("Veo API Key selection is not available. Please ensure your environment supports window.aistudio.");
+    if (!plot.trim()) {
+      alert("กรุณาใส่ Concept ก่อนครับ");
       return;
     }
-
-
-    const scene = scenes.find(s => s.id === sceneId);
-    if (!scene) return;
-
-    const prompt = constructPrompt(scene);
-
-    // Update status to generating
-    setScenes(prev => prev.map(s => s.id === sceneId ? { ...s, generationStatus: 'generating' } : s));
-
+    setIsGenerating(true); // Reuse isGenerating state
     try {
-      // Removed apiKeyFromProp argument as service function now uses process.env.API_KEY
-      const videoUrl = await generateVeoVideo(prompt, aspectRatio); 
-      
-      setScenes(prev => prev.map(s => s.id === sceneId ? { 
-        ...s, 
-        generationStatus: 'completed',
-        generatedVideoUrl: videoUrl
-      } : s));
-    } catch (error: any) {
-      console.error(error);
-      setScenes(prev => prev.map(s => s.id === sceneId ? { ...s, generationStatus: 'error' } : s));
-      alert(error.message || "เกิดข้อผิดพลาดในการสร้างวีดีโอ (API Error)");
+      const creativePrompt = await generateCreativePrompt(plot, activeStoryApiKey.key); // Pass activeStoryApiKey.key
+      setPlot(creativePrompt); // Update plot with the generated prompt
+    } catch (e: any) {
+      alert(e.message || "เกิดข้อผิดพลาดในการสร้างพรอมต์เชิงสร้างสรรค์");
+    } finally {
+      setIsGenerating(false);
     }
   };
+
 
   return (
     <div className="flex flex-col lg:flex-row gap-6 h-full">
@@ -205,6 +251,79 @@ const PromptBuilder: React.FC<PromptBuilderProps> = ({
                 className="w-full h-24 bg-slate-950 border border-slate-700 rounded-lg p-3 text-white text-sm focus:border-emerald-500 outline-none resize-none"
               />
             </div>
+
+            {/* Creative Prompt Button */}
+            <button
+              onClick={handleGenerateCreativePrompt}
+              disabled={isGenerating || !activeStoryApiKey?.key || !plot.trim()}
+              className={`w-full py-2 rounded-lg font-bold text-xs flex items-center justify-center gap-2 transition-all ${
+                activeStoryApiKey?.key && plot.trim()
+                  ? 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+                  : 'bg-slate-800 text-slate-500 cursor-not-allowed'
+              }`}
+            >
+              <Wand2 size={14} /> {isGenerating ? 'สร้างพรอมต์...' : 'ใช้ AI สร้างพรอมต์'}
+            </button>
+
+            {/* Character Selection for Storyboard */}
+            <div className="bg-slate-950/50 p-3 rounded-lg border border-slate-800 space-y-3">
+              <h4 className="text-xs font-bold text-slate-400 uppercase flex items-center gap-2">
+                <User size={12}/> เลือกตัวละครสำหรับบท (Select Characters)
+              </h4>
+              <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
+                {characters.length === 0 && (
+                  <p className="text-slate-600 text-xs italic">
+                    ยังไม่มีตัวละคร 
+                    <button 
+                      onClick={onNavigateToCharacterStudio} 
+                      className="text-emerald-400 hover:underline ml-1"
+                    >
+                        ไปสร้างที่หน้า Character Studio
+                    </button>
+                  </p>
+                )}
+                {characters.map(c => (
+                  <div 
+                    key={c.id} 
+                    onClick={() => toggleCharacterSelection(c.id)}
+                    className={`text-xs bg-slate-950 p-2 rounded border transition-all cursor-pointer flex justify-between items-center ${
+                      selectedCharactersForStoryboard.includes(c.id) 
+                      ? 'border-emerald-500 bg-emerald-900/20 text-emerald-300' 
+                      : 'border-slate-800 hover:border-slate-700 text-slate-300'
+                    }`}
+                  >
+                    <span className="font-bold">{c.name}</span>
+                    {selectedCharactersForStoryboard.includes(c.id) && <Check size={14} className="text-emerald-400"/>}
+                  </div>
+                ))}
+              </div>
+              <div className="flex flex-col gap-2">
+                <div>
+                  <label className="text-[10px] text-slate-500 block mb-1">จำนวนตัวละครสูงสุดต่อฉาก (Max Characters per Scene)</label>
+                  <input
+                    type="number"
+                    min="1"
+                    max={Math.min(selectedCharactersForStoryboard.length || 1, 3)} // Max 3 or num selected chars
+                    value={maxCharactersPerScene}
+                    onChange={e => onSetMaxCharactersPerScene(parseInt(e.target.value) || 1)}
+                    className="w-full bg-slate-900 border border-slate-700 rounded text-xs text-white p-1.5 outline-none"
+                    disabled={selectedCharactersForStoryboard.length === 0}
+                  />
+                </div>
+                <div>
+                  <label className="text-[10px] text-slate-500 block mb-1">จำนวนฉากที่ต้องการ (Number of Scenes)</label>
+                  <input
+                    type="number"
+                    min="1"
+                    max="10"
+                    value={numberOfScenes}
+                    onChange={e => onSetNumberOfScenes(parseInt(e.target.value) || 1)}
+                    className="w-full bg-slate-900 border border-slate-700 rounded text-xs text-white p-1.5 outline-none"
+                  />
+                </div>
+              </div>
+            </div>
+
 
             {/* Environment & Mood Controls */}
             <div className="bg-slate-950/50 p-3 rounded-lg border border-slate-800 space-y-3">
@@ -278,9 +397,9 @@ const PromptBuilder: React.FC<PromptBuilderProps> = ({
 
             <button
               onClick={handleAiGenerate}
-              disabled={isGenerating || !activeApiKey} // Disable if no activeApiKey for general AI director features
+              disabled={isGenerating || !activeStoryApiKey?.key || !plot.trim()}
               className={`w-full py-3 rounded-lg font-bold text-sm flex items-center justify-center gap-2 transition-all ${
-                activeApiKey 
+                activeStoryApiKey?.key && plot.trim()
                   ? 'bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white shadow-lg' 
                   : 'bg-slate-800 text-slate-500'
               }`}
@@ -288,41 +407,19 @@ const PromptBuilder: React.FC<PromptBuilderProps> = ({
               {isGenerating ? (
                 <>กำลังเขียนบท...</>
               ) : (
-                <><Wand2 size={16} /> {activeApiKey ? 'ใช้ AI เขียนบท (Generate Scenes)' : 'ตั้งค่า API Key เพื่อใช้ AI'}</>
+                <><Wand2 size={16} /> {activeStoryApiKey?.key ? 'ใช้ AI เขียนบท (Generate Scenes)' : 'ตั้งค่า API Key เพื่อใช้ AI'}</>
               )}
             </button>
             
-            {!activeApiKey && (
+            {!activeStoryApiKey?.key && (
                <p className="text-xs text-center text-amber-500 cursor-pointer hover:underline" onClick={onOpenApiKeyManager}>
                  <AlertCircle size={10} className="inline mr-1"/>
-                 คลิกเพื่อตั้งค่า API Key
+                 คลิกเพื่อตั้งค่า API Key (Story)
                </p>
             )}
           </div>
         </div>
 
-        <div className="bg-slate-900 border border-slate-700 rounded-xl p-6">
-           <h3 className="text-slate-400 font-bold uppercase text-xs tracking-wider mb-2">ข้อมูลตัวละคร ({characters.length})</h3>
-           <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
-             {characters.length === 0 && (
-                <p className="text-slate-600 text-xs italic">
-                    ยังไม่มีตัวละคร 
-                    <button 
-                      onClick={onNavigateToCharacterStudio} 
-                      className="text-emerald-400 hover:underline ml-1"
-                    >
-                        ไปสร้างที่หน้า Character Studio
-                    </button>
-                </p>
-             )}
-             {characters.map(c => (
-               <div key={c.id} className="text-xs bg-slate-950 p-2 rounded border border-slate-800 flex justify-between">
-                 <span className="text-emerald-400 font-bold">{c.name}</span>
-                 <span className="text-slate-500 truncate max-w-[100px]">{c.nameEn}</span>
-               </div>
-             ))}
-           </div>
-        </div>
       </div>
 
       {/* Right Column: Timeline */}
@@ -384,7 +481,7 @@ const PromptBuilder: React.FC<PromptBuilderProps> = ({
                       className="w-full bg-slate-950 border border-slate-700 rounded p-2 text-sm text-white focus:border-emerald-500 outline-none"
                     >
                       <option value="Wide Angle">Wide Angle (มุมกว้าง)</option>
-                      <option value="Close Up">Close Up (ระยะใกล้)</option>
+                      <option value="Close Up (ระยะใกล้)">Close Up (ระยะใกล้)</option>
                       <option value="Drone Shot">Drone Shot (โดรน)</option>
                       <option value="Tracking Shot">Tracking Shot (กล้องตาม)</option>
                       <option value="Over the Shoulder">Over the Shoulder (ข้ามไหล่)</option>
@@ -409,38 +506,40 @@ const PromptBuilder: React.FC<PromptBuilderProps> = ({
                       placeholder="สถานที่..."
                     />
                  </div>
+                 <div className="md:col-span-2">
+                    <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">บทพูดตัวอย่าง (Dialogue)</label>
+                    <textarea 
+                      value={scene.dialogue || ''}
+                      onChange={e => updateScene(scene.id, 'dialogue', e.target.value)}
+                      className="w-full h-16 bg-slate-950 border border-slate-700 rounded p-2 text-sm text-white focus:border-emerald-500 outline-none resize-none"
+                      placeholder="บทพูดของตัวละครในฉากนี้..."
+                    />
+                 </div>
+                 <div className="md:col-span-2">
+                    <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">องค์ประกอบในฉาก (Environment Elements)</label>
+                    <div className="flex flex-wrap gap-2">
+                      {combinedEnvironmentElements.length > 0 ? (
+                        combinedEnvironmentElements.map(option => (
+                          <span 
+                            key={option} 
+                            onClick={() => toggleEnvironmentElement(scene.id, option)}
+                            className={`cursor-pointer px-3 py-1 text-xs rounded-full border transition-all ${
+                              scene.environmentElements?.includes(option) 
+                                ? 'bg-emerald-900/50 border-emerald-500 text-emerald-100' 
+                                : 'bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-700'
+                            }`}
+                          >
+                            {option}
+                          </span>
+                        ))
+                      ) : (
+                        <p className="text-slate-500 text-xs">(ไม่มีตัวเลือก)</p>
+                      )}
+                    </div>
+                 </div>
               </div>
 
-              {/* Video Generation Result */}
-              {scene.generatedVideoUrl && (
-                  <div className="mb-4 bg-black rounded-lg overflow-hidden border border-slate-800">
-                      <video 
-                          src={scene.generatedVideoUrl} 
-                          controls 
-                          className="w-full h-auto max-h-[400px]"
-                          autoPlay
-                          loop
-                      />
-                      <div className="p-2 bg-slate-950 text-center">
-                          <a 
-                              href={scene.generatedVideoUrl} 
-                              download="veo_video.mp4"
-                              target="_blank"
-                              rel="noreferrer"
-                              className="text-xs text-emerald-400 hover:underline"
-                          >
-                              Download Video
-                          </a>
-                      </div>
-                  </div>
-              )}
-
-              {/* Error Message */}
-              {scene.generationStatus === 'error' && (
-                  <div className="mb-4 p-3 bg-red-900/20 border border-red-900/50 rounded text-red-400 text-xs">
-                      Failed to generate video. Please check your API Key and Quota.
-                  </div>
-              )}
+              {/* Removed Video Generation Result and Error Message as per user's request */}
 
               <div className="flex items-center justify-between pt-4 border-t border-slate-800">
                   <div className="text-xs text-slate-500">
@@ -455,22 +554,10 @@ const PromptBuilder: React.FC<PromptBuilderProps> = ({
                      </button>
                      
                      <button
-                       onClick={() => onLaunchScene(constructPrompt(scene))}
+                       onClick={() => onGenerateSceneVideo(constructPrompt(scene))} // Renamed prop
                        className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold rounded flex items-center gap-2 border border-slate-700"
                      >
                        <MonitorPlay size={14} /> Web Launch
-                     </button>
-
-                     <button
-                       onClick={() => handleGenerateVideo(scene.id)}
-                       disabled={scene.generationStatus === 'generating'}
-                       className={`px-4 py-1.5 rounded flex items-center gap-2 text-xs font-bold shadow-lg transition-all ${
-                           scene.generationStatus === 'generating'
-                           ? 'bg-slate-800 text-slate-500 cursor-not-allowed'
-                           : 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-emerald-900/20'
-                       }`}
-                     >
-                       {scene.generationStatus === 'generating' ? 'Generating...' : 'Generate (API)'}
                      </button>
                   </div>
               </div>

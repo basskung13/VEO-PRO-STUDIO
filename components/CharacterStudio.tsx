@@ -1,18 +1,20 @@
+
+
 import React, { useState, useEffect } from 'react';
 import { Character, CharacterAttributes, CustomOption, ApiKey } from '../types';
-import { generateCharacterImage } from '../services/geminiService'; // Import the new service function
-import { User, Save, Trash2, RefreshCw, Sparkles, Wand2, Palette, Smile, Shirt, Scissors, Dna, Crown, Sword, MessagesSquare, ChevronLeft, ChevronRight, Plus, Tag, Filter, Loader2, Download, X, AlertCircle, Key } from 'lucide-react'; // Added Loader2, Download, AlertCircle, Key
+import { generateCharacterImage, handleAistudioApiKeySelection } from '../services/geminiService';
+import { User, Save, Trash2, RefreshCw, Sparkles, Wand2, Palette, Smile, Shirt, Scissors, Dna, Crown, Sword, MessagesSquare, ChevronLeft, ChevronRight, Plus, Tag, Filter, Loader2, Download, X, AlertCircle, Key } from 'lucide-react';
 
 interface CharacterStudioProps {
   characters: Character[];
   onSaveCharacter: (char: Character) => void;
   onDeleteCharacter: (id: string) => void;
   onBack: () => void;
-  customOptions: CustomOption[]; // New prop
-  onAddCustomOption: (option: CustomOption) => void; // New prop
-  onRemoveCustomOption: (id: string) => void; // New prop
-  activeApiKey: ApiKey | null; // Keep activeApiKey for UI display, but not for direct image API call
-  onOpenApiKeyManager: () => void; // New prop to open API key manager
+  customOptions: CustomOption[];
+  onAddCustomOption: (option: CustomOption) => void;
+  onRemoveCustomOption: (id: string) => void;
+  activeCharacterApiKey: ApiKey | null;
+  onOpenApiKeyManager: () => void;
 }
 
 // These are now purely for `defaultAttributes` initialization and constants (like GENDERS, AGES)
@@ -25,7 +27,7 @@ const EYES_COLORS = ['Brown (น้ำตาล)', 'Blue (ฟ้า)', 'Green (�
 
 
 // Map of attribute keys to their Thai display names for custom option categories
-const ATTRIBUTE_CATEGORIES_MAP: { [K in keyof CharacterAttributes]: string } = {
+const ATTRIBUTE_CATEGORIES_MAP: { [K in keyof CharacterAttributes | 'environmentElement']: string } = {
   gender: 'เพศ (Gender)',
   ageGroup: 'กลุ่มอายุ (Age Group)',
   skinTone: 'สีผิว (Skin Tone)',
@@ -44,18 +46,19 @@ const ATTRIBUTE_CATEGORIES_MAP: { [K in keyof CharacterAttributes]: string } = {
   weapons: 'อาวุธ/ของถือ (Weapons)',
   personality: 'บุคลิกภาพ (Personality)',
   currentMood: 'อารมณ์ปัจจุบัน (Current Mood)',
+  environmentElement: 'องค์ประกอบสภาพแวดล้อม (Environment Element)', // NEW
 };
 
 // Keys for attributes that are fully managed via custom options
-const CHARACTER_ATTRIBUTE_KEYS_FOR_CUSTOM_OPTIONS: (keyof CharacterAttributes)[] = [
+const CHARACTER_ATTRIBUTE_KEYS_FOR_CUSTOM_OPTIONS: (keyof CharacterAttributes | 'environmentElement')[] = [
   'gender', 'ageGroup', 'skinTone', 'faceShape', 'eyeShape', 'eyeColor',
   'hairStyle', 'hairColor', 'hairTexture', 'facialFeatures', 'bodyType',
   'clothingStyle', 'clothingColor', 'clothingDetail', 'accessories', 'weapons',
-  'personality', 'currentMood',
+  'personality', 'currentMood', 'environmentElement', // NEW
 ];
 
 // Map of attribute keys to their placeholder text suggestions for adding custom options
-const ATTRIBUTE_PLACEHOLDER_MAP: { [K in keyof CharacterAttributes]: string } = {
+const ATTRIBUTE_PLACEHOLDER_MAP: { [K in keyof CharacterAttributes | 'environmentElement']: string } = {
   gender: "เช่น 'เพศหุ่นยนต์', 'เพศเอเลี่ยน'",
   ageGroup: "เช่น 'วัยทารกวิวัฒนาการ', 'วัยผู้ใหญ่โบราณ'",
   skinTone: "เช่น 'ผิวสีเงิน', 'ผิวสีฟ้าอ่อน'",
@@ -74,17 +77,18 @@ const ATTRIBUTE_PLACEHOLDER_MAP: { [K in keyof CharacterAttributes]: string } = 
   weapons: "เช่น 'ดาบแสง', 'ปืนเลเซอร์'",
   personality: "เช่น 'ขี้เล่นแต่จริงจัง', 'เงียบขรึมแต่ฉลาด'",
   currentMood: "เช่น 'คลุ้มคลั่ง', 'สงบนิ่งอย่างประหลาด'",
+  environmentElement: "เช่น 'ไก่', 'ช้าง', 'ชาวบ้านจำนวนมาก'", // NEW
 };
 
 
-const CharacterStudio: React.FC<CharacterStudioProps> = ({ characters, onSaveCharacter, onDeleteCharacter, onBack, customOptions, onAddCustomOption, onRemoveCustomOption, activeApiKey, onOpenApiKeyManager }) => {
+const CharacterStudio: React.FC<CharacterStudioProps> = ({ characters, onSaveCharacter, onDeleteCharacter, onBack, customOptions, onAddCustomOption, onRemoveCustomOption, activeCharacterApiKey, onOpenApiKeyManager }) => {
   const [activeCharId, setActiveCharId] = useState<string | null>(null);
   const [isSidebarOpen, setIsSidebarOpen] = useState(true); // New state for sidebar visibility
   
   const [newCustomOptionValue, setNewCustomOptionValue] = useState('');
   
   // selectedManageCategory will now also serve as the category for new additions
-  const [selectedManageCategory, setSelectedManageCategory] = useState<keyof CharacterAttributes>(
+  const [selectedManageCategory, setSelectedManageCategory] = useState<keyof CharacterAttributes | 'environmentElement'>( // UPDATED
     CHARACTER_ATTRIBUTE_KEYS_FOR_CUSTOM_OPTIONS[0] // Default to the first category
   );
 
@@ -93,7 +97,7 @@ const CharacterStudio: React.FC<CharacterStudioProps> = ({ characters, onSaveCha
   const [isImageGenerating, setIsImageGenerating] = useState(false);
   const [imageError, setImageError] = useState<string | null>(null);
 
-  // New state for aistudio API Key management
+  // New state for aistudio API Key management (specific to Character Image Generation)
   const [aistudioKeySelected, setAistudioKeySelected] = useState(false);
   const [aistudioKeyCheckCompleted, setAistudioKeyCheckCompleted] = useState(false);
   const [aistudioAvailable, setAistudioAvailable] = useState(false); // New state to track if window.aistudio is available
@@ -125,28 +129,31 @@ const CharacterStudio: React.FC<CharacterStudioProps> = ({ characters, onSaveCha
     nameEn: string;
     seed: string;
     attr: CharacterAttributes;
-    visualDescriptionOverride: string; // New state for override
-    dialogueExample: string; // New state field
+    visualDescriptionOverride: string;
+    dialogueExample: string;
   }>({
     name: '',
     nameEn: '',
     seed: Math.random().toString(36).substring(7).toUpperCase(),
     attr: { ...defaultAttributes },
-    visualDescriptionOverride: '', // Initialize
-    dialogueExample: '' // Initialize
+    visualDescriptionOverride: '',
+    dialogueExample: ''
   });
 
   // --- Effect to check aistudio API Key status ---
   useEffect(() => {
     const checkAistudioKey = async () => {
+      // Check if window.aistudio exists and if hasSelectedApiKey is a function
       if (window.aistudio && typeof window.aistudio.hasSelectedApiKey === 'function') {
         setAistudioAvailable(true); // aistudio is available
         const hasKey = await window.aistudio.hasSelectedApiKey();
         setAistudioKeySelected(hasKey);
       } else {
-        // window.aistudio is not available, assume API key is managed externally via env var
+        // window.aistudio is not available, assume API key is managed externally via activeApiKey
         setAistudioAvailable(false);
-        setAistudioKeySelected(true); // Optimistically assume key is set if aistudio isn't present
+        // Optimistically assume key is set via ApiKeyManager if aistudio isn't present
+        // Actual key validity will be checked on API call via activeCharacterApiKey
+        setAistudioKeySelected(true); 
         console.warn("window.aistudio object or hasSelectedApiKey function not found. Assuming API Key is managed externally.");
       }
       setAistudioKeyCheckCompleted(true);
@@ -165,11 +172,11 @@ const CharacterStudio: React.FC<CharacterStudioProps> = ({ characters, onSaveCha
           nameEn: char.nameEn,
           seed: char.seed,
           attr: { ...defaultAttributes, ...char.attributes }, // Merge to ensure new fields exist
-          visualDescriptionOverride: char.visualDescriptionOverride || '', // Load override
-          dialogueExample: char.dialogueExample || '' // Load dialogue example
+          visualDescriptionOverride: char.visualDescriptionOverride || '',
+          dialogueExample: char.dialogueExample || ''
         });
-        setCharacterImageUrl(char.imageUrl || null); // Load saved image URL
-        setImageError(null); // Clear any previous image errors
+        setCharacterImageUrl(char.imageUrl || null);
+        setImageError(null);
       }
     } else {
       // Clear form for new character
@@ -178,11 +185,11 @@ const CharacterStudio: React.FC<CharacterStudioProps> = ({ characters, onSaveCha
         nameEn: '',
         seed: Math.random().toString(36).substring(7).toUpperCase(),
         attr: { ...defaultAttributes },
-        visualDescriptionOverride: '', // Clear for new character
-        dialogueExample: '' // Clear for new character
+        visualDescriptionOverride: '',
+        dialogueExample: ''
       });
-      setCharacterImageUrl(null); // Clear image for new character
-      setImageError(null); // Clear error for new character
+      setCharacterImageUrl(null);
+      setImageError(null);
     }
   }, [activeCharId, characters]);
 
@@ -244,14 +251,14 @@ const CharacterStudio: React.FC<CharacterStudioProps> = ({ characters, onSaveCha
       description: generateDescription(),
       attributes: form.attr,
       seed: form.seed,
-      visualDescriptionOverride: form.visualDescriptionOverride.trim(), // Save override
-      dialogueExample: form.dialogueExample.trim(), // Save dialogue example
-      imageUrl: characterImageUrl || undefined, // Save current image URL
+      visualDescriptionOverride: form.visualDescriptionOverride.trim(),
+      dialogueExample: form.dialogueExample.trim(),
+      imageUrl: characterImageUrl || undefined,
       createdAt: activeCharId ? (characters.find(c => c.id === activeCharId)?.createdAt || Date.now()) : Date.now()
     };
 
     onSaveCharacter(newChar);
-    if (!activeCharId) { // If it was a new character, set activeCharId to the new one
+    if (!activeCharId) {
         setActiveCharId(newChar.id); 
     }
     alert("บันทึกตัวละครเรียบร้อย!");
@@ -286,10 +293,10 @@ const CharacterStudio: React.FC<CharacterStudioProps> = ({ characters, onSaveCha
 
 
     setForm(prev => ({
-      ...prev, // Use previous state for name, nameEn
+      ...prev,
       seed: Math.random().toString(36).substring(7).toUpperCase(),
-      visualDescriptionOverride: '', // Clear override on randomize
-      dialogueExample: '', // Clear dialogue example on randomize
+      visualDescriptionOverride: '',
+      dialogueExample: '',
       attr: {
         ...prev.attr,
         gender: combinedGenders.length > 0 ? randomItem(combinedGenders) : defaultAttributes.gender,
@@ -312,16 +319,16 @@ const CharacterStudio: React.FC<CharacterStudioProps> = ({ characters, onSaveCha
         hairTexture: combinedHairTextures.length > 0 ? randomItem(combinedHairTextures) : defaultAttributes.hairTexture,
       }
     }));
-    setCharacterImageUrl(null); // Clear image on randomize
-    setImageError(null); // Clear error on randomize
+    setCharacterImageUrl(null);
+    setImageError(null);
   };
 
   const handleCreateNewCharacter = () => {
-    setActiveCharId(null); // This will trigger the useEffect to load a blank form
+    setActiveCharId(null);
   };
 
   const handleAddCustomOptionClick = () => {
-    if (newCustomOptionValue.trim() && selectedManageCategory) { // Use selectedManageCategory as the key
+    if (newCustomOptionValue.trim() && selectedManageCategory) {
       // Check for duplicate value within the same attributeKey
       const isDuplicate = customOptions.some(
         opt => opt.value.trim() === newCustomOptionValue.trim() && opt.attributeKey === selectedManageCategory
@@ -334,21 +341,21 @@ const CharacterStudio: React.FC<CharacterStudioProps> = ({ characters, onSaveCha
       onAddCustomOption({
         id: Date.now().toString(),
         value: newCustomOptionValue.trim(),
-        attributeKey: selectedManageCategory // Use selectedManageCategory as the attributeKey
+        attributeKey: selectedManageCategory
       });
       setNewCustomOptionValue('');
     }
   };
 
   // Helper to get options from customOptions prop based on attribute key
-  const getCombinedOptions = (key: keyof CharacterAttributes) => {
+  const getCombinedOptions = (key: keyof CharacterAttributes | 'environmentElement') => { // UPDATED
     return customOptions
       .filter(opt => opt.attributeKey === key)
       .map(opt => opt.value);
   };
 
   // Helper to get tag options from customOptions prop based on attribute key
-  const getCombinedTagOptions = (key: keyof CharacterAttributes) => {
+  const getCombinedTagOptions = (key: keyof CharacterAttributes | 'environmentElement') => { // UPDATED
     return customOptions
       .filter(opt => opt.attributeKey === key)
       .map(opt => opt.value);
@@ -358,25 +365,35 @@ const CharacterStudio: React.FC<CharacterStudioProps> = ({ characters, onSaveCha
   const handleGenerateImage = async () => {
     setIsImageGenerating(true);
     setImageError(null);
-    setCharacterImageUrl(null); // Clear previous image
+    setCharacterImageUrl(null);
+
+    if (!activeCharacterApiKey?.key) {
+      onOpenApiKeyManager();
+      setImageError("ไม่พบ API Key. โปรดตั้งค่า API Key เพื่อสร้างภาพ.");
+      setIsImageGenerating(false);
+      return;
+    }
 
     try {
       // Step 1: Conditionally check and open aistudio API key selection if window.aistudio is available
-      if (aistudioAvailable) { // Only attempt if aistudio is actually detected
-        if (window.aistudio && typeof window.aistudio.hasSelectedApiKey === 'function') {
-          const hasAistudioKey = await window.aistudio.hasSelectedApiKey();
-          if (!hasAistudioKey) {
-            alert("สำหรับ `gemini-3-pro-image-preview` คุณต้องเลือก API Key ที่ผูกกับการเรียกเก็บเงินแล้ว ผ่านหน้าต่าง 'ตั้งค่า API Key' ที่จะเปิดขึ้นมา");
-            await window.aistudio.openSelectKey();
-            setAistudioKeySelected(true); // Optimistically update state
-          }
+      if (aistudioAvailable) {
+        // handleAistudioApiKeySelection will prompt user and return true if selection happened, false if aistudio not available
+        const selectedViaAistudio = await handleAistudioApiKeySelection('gemini-3-pro-image-preview');
+        if (!selectedViaAistudio) {
+          // If aistudio was available but key selection failed or user cancelled, stop here
+          setImageError("การเลือก API Key ผ่าน AI Studio ถูกยกเลิกหรือไม่สำเร็จ.");
+          setIsImageGenerating(false);
+          setAistudioKeySelected(false);
+          return;
         }
+        // If selection happened, we optimistically assume it's good and proceed.
+        // The service function will create a new instance and pick up the updated process.env.API_KEY if applicable.
+        setAistudioKeySelected(true);
       } 
-      // Proceed with API call. If aistudio is not available, we assume process.env.API_KEY is configured.
-      // If aistudio is available, we assume the user has selected a key or will select one.
+      // If aistudio is not available, or selection completed, proceed with API call using activeCharacterApiKey.key
       
-      const prompt = generateDescription(); // Use the existing generateDescription
-      const imageUrl = await generateCharacterImage(prompt); // service function now uses process.env.API_KEY
+      const prompt = generateDescription();
+      const imageUrl = await generateCharacterImage(prompt, activeCharacterApiKey.key);
       setCharacterImageUrl(imageUrl);
 
     } catch (e: any) {
@@ -384,7 +401,7 @@ const CharacterStudio: React.FC<CharacterStudioProps> = ({ characters, onSaveCha
       setImageError(e.message || "ไม่สามารถสร้างภาพได้. โปรดตรวจสอบ API Key หรือลองอีกครั้ง.");
       // Specific handling for "Requested entity was not found." as per guidelines
       if (e.message && e.message.includes("Requested entity was not found.") && aistudioAvailable) {
-        setAistudioKeySelected(false); // Reset AISTUDIO key selection state for a retry only if aistudio is available
+        setAistudioKeySelected(false);
       }
     } finally {
       setIsImageGenerating(false);
@@ -412,7 +429,8 @@ const CharacterStudio: React.FC<CharacterStudioProps> = ({ characters, onSaveCha
   // 1. Image is currently generating
   // 2. Aistudio key check is not completed yet
   // 3. (If Aistudio is available) Aistudio key has not been selected
-  const isGenerateImageButtonDisabled = isImageGenerating || !aistudioKeyCheckCompleted || (aistudioAvailable && !aistudioKeySelected);
+  // 4. No active API key has been provided via ApiKeyManager (activeCharacterApiKey is null)
+  const isGenerateImageButtonDisabled = isImageGenerating || !aistudioKeyCheckCompleted || (aistudioAvailable && !aistudioKeySelected) || !activeCharacterApiKey?.key;
 
 
   // Pre-fetch combined options for rendering
@@ -600,7 +618,6 @@ const CharacterStudio: React.FC<CharacterStudioProps> = ({ characters, onSaveCha
                     </>
                   )}
                 </button>
-                {/* Fix: Changed `aistudioCheckCompleted` to `aistudioKeyCheckCompleted` */}
                 {aistudioKeyCheckCompleted && aistudioAvailable && !aistudioKeySelected && !isImageGenerating && (
                   <button 
                     onClick={onOpenApiKeyManager}
@@ -609,6 +626,16 @@ const CharacterStudio: React.FC<CharacterStudioProps> = ({ characters, onSaveCha
                     <Key size={12} />
                     <AlertCircle size={12} className="inline mr-1"/>
                     สำหรับ `gemini-3-pro-image-preview` ต้องเลือก API Key ที่มีการเรียกเก็บเงิน
+                  </button>
+                )}
+                {aistudioKeyCheckCompleted && !aistudioAvailable && !activeCharacterApiKey?.key && !isImageGenerating && (
+                  <button 
+                    onClick={onOpenApiKeyManager}
+                    className="text-xs text-center text-amber-500 cursor-pointer hover:underline flex items-center gap-1"
+                  >
+                    <Key size={12} />
+                    <AlertCircle size={12} className="inline mr-1"/>
+                    ไม่พบ `window.aistudio`. โปรดตั้งค่า API Key (Character) ผ่านตัวจัดการ API Key
                   </button>
                 )}
               </div>
@@ -681,7 +708,7 @@ const CharacterStudio: React.FC<CharacterStudioProps> = ({ characters, onSaveCha
                 <label className="block text-slate-400 text-xs font-semibold mb-1">เลือกหมวดหมู่</label>
                 <select 
                   value={selectedManageCategory}
-                  onChange={(e) => setSelectedManageCategory(e.target.value as keyof CharacterAttributes)}
+                  onChange={(e) => setSelectedManageCategory(e.target.value as keyof CharacterAttributes | 'environmentElement')} // UPDATED
                   className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm focus:border-emerald-500 outline-none"
                 >
                   {CHARACTER_ATTRIBUTE_KEYS_FOR_CUSTOM_OPTIONS.map(key => (

@@ -1,7 +1,15 @@
 
+
 import React from 'react';
 import { createRoot } from 'react-dom/client';
 import App from './App';
+
+// Polyfill process for browser compatibility with some Node.js libraries
+// This is necessary if libraries implicitly try to access `process.env`
+// even when an API key is provided directly to their constructor.
+if (typeof (window as any).process === 'undefined') {
+  (window as any).process = { env: {} };
+}
 
 const rootElement = document.getElementById('root');
 if (!rootElement) {

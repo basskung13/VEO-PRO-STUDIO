@@ -37,7 +37,7 @@ export interface CustomOption {
   attributeKey: 'gender' | 'ageGroup' | 'skinTone' | 'faceShape' | 'eyeShape' | 'eyeColor' |
                 'hairStyle' | 'hairColor' | 'hairTexture' | 'facialFeatures' | 'bodyType' |
                 'clothingStyle' | 'clothingColor' | 'clothingDetail' | 'accessories' |
-                'weapons' | 'personality' | 'currentMood';
+                'weapons' | 'personality' | 'currentMood' | 'environmentElement'; // New attribute key
 }
 
 // Character Studio Types
@@ -81,7 +81,8 @@ export interface Scene {
   characterId: string | 'none'; // ID of the character in this scene
   action: string; // What is happening
   setting: string; // Environment
-  dialogue?: string; // Optional speaking line
+  dialogue?: string; // Optional speaking line - NEW
+  environmentElements?: string[]; // Specific objects/people in environment - NEW
   shotType: string; // Camera angle
   shotAngle?: string; // New field for camera angle
   duration: '5s' | '8s';

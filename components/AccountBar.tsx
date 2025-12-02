@@ -1,4 +1,5 @@
 
+
 import React, { useState } from 'react';
 import { Users, ChevronDown, Check, Edit2, X, Settings, LogOut } from 'lucide-react';
 import { UserProfile, LoggedInUser } from '../types';
@@ -9,12 +10,12 @@ interface AccountBarProps {
   usageMap: Record<number, number>;
   userProfiles: Record<number, UserProfile>;
   maxCount: number;
-  onAccountSelect: (index: number) => void;
+  onAccountSelect: (index: number) => void; // Still needed for showing active but not for direct generation select
   onResetCurrent: () => void;
   onUpdateProfileName: (index: number, name: string) => void;
   onOpenSettings: () => void;
-  loggedInUser: LoggedInUser | null; // New prop
-  onLogout: () => void; // New prop
+  loggedInUser: LoggedInUser | null;
+  onLogout: () => void;
 }
 
 const AccountBar: React.FC<AccountBarProps> = ({ 
@@ -23,12 +24,12 @@ const AccountBar: React.FC<AccountBarProps> = ({
   usageMap, 
   userProfiles,
   maxCount, 
-  onAccountSelect,
+  onAccountSelect, // Retain to allow App to set active index for display
   onResetCurrent,
   onUpdateProfileName,
   onOpenSettings,
-  loggedInUser, // Destructure new prop
-  onLogout // Destructure new prop
+  loggedInUser,
+  onLogout
 }) => {
   const currentUsage = usageMap[currentAccountIndex] || 0;
   const isLimitReached = currentUsage >= maxCount;
@@ -137,9 +138,10 @@ const AccountBar: React.FC<AccountBarProps> = ({
                                   className={`w-full text-left px-4 py-3 flex items-center justify-between hover:bg-slate-800 transition-colors cursor-pointer group border-b border-slate-800/50 last:border-0 ${
                                       currentAccountIndex === idx ? 'bg-slate-800/50' : ''
                                   }`}
+                                  // Removed direct onAccountSelect call for video generation, now for display only.
                                   onClick={() => {
                                     if (!isEditing) {
-                                      onAccountSelect(idx);
+                                      onAccountSelect(idx); // Still set for display purposes
                                       setIsOpen(false);
                                     }
                                   }}
