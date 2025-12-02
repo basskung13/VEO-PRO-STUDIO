@@ -1,25 +1,25 @@
-
 {
-      "compilerOptions": {
-        "target": "ESNext",
-        "useDefineForClassFields": true,
-        "lib": ["DOM", "DOM.Iterable", "ESNext"],
-        "allowJs": false,
-        "skipLibCheck": true,
-        "esModuleInterop": true,
-        "allowSyntheticDefaultImports": true,
-        "strict": true,
-        "forceConsistentCasingInFileNames": true,
-        "module": "ESNext",
-        "moduleResolution": "bundler",
-        "resolveJsonModule": true,
-        "isolatedModules": true,
-        "noEmit": true,
-        "jsx": "react-jsx",
-        "paths": {
-          "@/*": ["./src/*"]
-        }
-      },
-      "include": ["./*.ts", "./*.tsx", "./components/**/*.ts", "./components/**/*.tsx", "./services/**/*.ts", "./services/**/*.tsx", "./types.ts"],
-      "references": [{ "path": "./tsconfig.node.json" }]
-    }
+  "compilerOptions": {
+    "target": "ESNext",
+    "useDefineForClassFields": true,
+    "lib": ["DOM", "DOM.Iterable", "ESNext"],
+    "allowJs": false,
+    "skipLibCheck": true,
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
+    "strict": true,
+    "forceConsistentCasingInFileNames": true,
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "noEmit": true,
+    "jsx": "react-jsx",
+    "paths": {
+      "@/*": ["./src/*"]
+    },
+    "types": ["node"]
+  },
+  "include": ["./*.tsx", "./components/**/*.ts", "./components/**/*.tsx", "./services/**/*.ts", "./services/**/*.tsx", "./types.ts"],
+  "references": [{ "path": "./tsconfig.node.json" }]
+}

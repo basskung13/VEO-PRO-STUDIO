@@ -1,5 +1,4 @@
 
-
 export interface HistoryItem {
   id: string;
   originalPrompt: string;

@@ -1,7 +1,9 @@
 
-
 import { PromptConfig, Scene, Character, AspectRatio } from "../types";
-import { GoogleGenAI } from "@google/genai";
+import { GoogleGenAI, GenerateContentResponse } from "@google/genai"; // Import GenerateContentResponse for type safety
+
+// Removed duplicate declare global for window.aistudio.
+// The type definition for window.aistudio is already handled in types.ts
 
 // Helper to construct the text prompt optimized for Gemini Web
 export const constructVeoPrompt = (config: PromptConfig): string => {
@@ -35,265 +37,248 @@ export const openGeminiWeb = (authIndex: number = 0) => {
 };
 
 export const openGoogleAccountChooser = (authIndex: number, email?: string) => {
-  const targetUrl = `https://gemini.google.com/app?authuser=${authIndex}`;
+  const targetUrl = `https://accounts.google.com/AccountChooser?continue=https://gemini.google.com/app&service=mail&authuser=${authIndex}`;
   const width = 1000;
   const height = 700;
   const left = (window.screen.width - width) / 2;
   const top = (window.screen.height - height) / 2;
-  
-  let finalUrl = targetUrl;
-  if (email && email.trim() !== '') {
-    finalUrl = `https://accounts.google.com/AccountChooser?Email=${encodeURIComponent(email.trim())}&continue=${encodeURIComponent(targetUrl)}`;
-  } 
 
   window.open(
-    finalUrl, 
-    'GoogleAccountChooser', 
+    targetUrl, 
+    `AccountChooser-${authIndex}`, 
     `width=${width},height=${height},top=${top},left=${left},resizable=yes,scrollbars=yes,status=yes`
   );
+
+  // In a real application, you might want to periodically check if the user has signed in
+  // or provide a manual refresh button.
 };
 
-export interface CreativeContext {
-  concept: string;
-  character: string;
-  setting: string;
-  weather: string;
-  atmosphere: string;
-  lighting: string;
-  camera: string;
-  intensity: string; 
-}
 
-export const generateCreativePrompt = async (context: CreativeContext): Promise<string> => {
-  // Always use process.env.API_KEY for actual API calls
-  if (!process.env.API_KEY) throw new Error("API Key is required. Please set it in the API Key Manager.");
-
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-  const systemInstruction = `You are an expert film director. Construct a detailed visual prompt.`;
-
-  try {
-    // Updated model from 'gemini-2.0-flash' to 'gemini-2.5-flash' as per guidelines.
-    const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash',
-      contents: { parts: [{ text: `Generate prompt for: ${JSON.stringify(context)}` }] },
-      config: { systemInstruction, temperature: 0.75 }
-    });
-    return response.text?.trim() || "";
-  } catch (error: any) {
-    console.error("AI Generation Error:", error);
-    if (error.message && error.message.includes("PERMISSION_DENIED")) {
-        throw new Error(
-            "Permission denied. This usually means your API Key is not configured for billing or the Generative Language API is not enabled in your Google Cloud Project. " +
-            "Please check your Google Cloud project settings and ensure billing is enabled and the Generative Language API is active. " +
-            "For image generation with `gemini-3-pro-image-preview` and video generation with Veo, you must select a paid API key via the 'ตั้งค่า API Key' button."
-        );
-    }
-    throw error;
+// Function to handle common API key error logic for AISTUDIO models
+const handleAistudioApiKeyError = async (modelName: string) => {
+  if (window.aistudio && typeof window.aistudio.openSelectKey === 'function') {
+    alert(`สำหรับ '${modelName}' คุณต้องเลือก API Key ที่ผูกกับการเรียกเก็บเงินแล้ว ผ่านหน้าต่าง 'ตั้งค่า API Key' ที่จะเปิดขึ้นมา`);
+    await window.aistudio.openSelectKey();
+    // Assuming success after openSelectKey() as per guidelines, no delay needed for race condition.
+  } else {
+    throw new Error(`API Key selection (window.aistudio) is not available for ${modelName}. Ensure your environment supports it.`);
   }
 };
 
-// New: Generate Storyboard from Plot with Mood Context
-export const generateStoryboardFromPlot = async (
-  plot: string, 
-  characters: Character[],
-  moodContext?: { weather: string; atmosphere: string; lighting: string; intensity: number }
-): Promise<Scene[]> => {
-  // Always use process.env.API_KEY for actual API calls
-  if (!process.env.API_KEY) throw new Error("API Key is required. Please set it in the API Key Manager.");
-  if (!plot) return [];
-
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-  
-  const charList = characters.map(c => `- ${c.nameEn} (ID: ${c.id}): ${c.description}`).join('\n');
-  
-  let moodPrompt = "";
-  if (moodContext) {
-    moodPrompt = `
-    Global Atmosphere Settings:
-    - Weather: ${moodContext.weather}
-    - Atmosphere: ${moodContext.atmosphere}
-    - Lighting: ${moodContext.lighting}
-    - Emotional Intensity: ${moodContext.intensity}% (0=Calm, 100=Extreme)
-    
-    Ensure the scenes reflect these settings. For example, if it's rainy, include rain in the setting description. If intensity is high, make the action dramatic.
-    `;
-  }
-
-  const systemInstruction = `You are a professional storyboard artist.
-  Based on the User's PLOT and available CHARACTERS, break the story down into 3-5 distinct video scenes.
-  ${moodPrompt}
-  
-  Available Characters:
-  ${charList}
-  (If the plot needs a generic character not listed, use 'none' for characterId)
-
-  Output STRICT JSON format:
-  [
-    {
-      "characterId": "ID_FROM_LIST_OR_NONE",
-      "action": "Visual description of action",
-      "setting": "Visual description of setting",
-      "shotType": "Camera angle (e.g. Wide Shot, Close Up)",
-      "dialogue": "Optional dialogue line",
-      "duration": "5s"
-    }
-  ]
-  `;
-
-  try {
-    // Updated model from 'gemini-2.0-flash' to 'gemini-2.5-flash' as per guidelines.
-    const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash',
-      contents: { parts: [{ text: `Plot: ${plot}` }] },
-      config: {
-        systemInstruction: systemInstruction,
-        responseMimeType: 'application/json'
-      }
-    });
-
-    const jsonText = response.text || "[]";
-    const scenes = JSON.parse(jsonText);
-    return scenes.map((s: any) => ({
-      ...s,
-      id: Date.now().toString() + Math.random().toString()
-    }));
-  } catch (error: any) {
-    console.error("Storyboard Generation Error:", error);
-    if (error.message && error.message.includes("PERMISSION_DENIED")) {
-        throw new Error(
-            "Permission denied. This usually means your API Key is not configured for billing or the Generative Language API is not enabled in your Google Cloud Project. " +
-            "Please check your Google Cloud project settings and ensure billing is enabled and the Generative Language API is active. " +
-            "For image generation with `gemini-3-pro-image-preview` and video generation with Veo, you must select a paid API key via the 'ตั้งค่า API Key' button."
-        );
-    }
-    throw error;
-  }
-};
-
-// Generate Video using Veo 3.1
-export const generateVeoVideo = async (
-  prompt: string, 
-  aspectRatio: AspectRatio
-): Promise<string> => {
-  // Always use process.env.API_KEY for actual API calls
-  if (!process.env.API_KEY) throw new Error("API Key is required. Please set it in the API Key Manager.");
-
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-  
-  try {
-    let operation = await ai.models.generateVideos({
-      model: 'veo-3.1-fast-generate-preview',
-      prompt: prompt,
-      config: {
-        numberOfVideos: 1,
-        resolution: '1080p',
-        aspectRatio: aspectRatio as any
-      }
-    });
-
-    // Polling for completion
-    while (!operation.done) {
-      await new Promise(resolve => setTimeout(resolve, 5000));
-      operation = await ai.operations.getVideosOperation({ operation: operation });
-    }
-
-    if (operation.error) {
-      throw new Error((operation.error.message as string) || "Video generation failed");
-    }
-
-    const uri = operation.response?.generatedVideos?.[0]?.video?.uri;
-    if (!uri) throw new Error("No video URI returned from API");
-    
-    // Append API key to allow fetching/viewing
-    return `${uri}&key=${process.env.API_KEY}`;
-  } catch (error: any) {
-    console.error("Veo Video Generation Error:", error);
-    if (error.message && error.message.includes("PERMISSION_DENIED")) {
-        throw new Error(
-            "Permission denied. This usually means your API Key is not configured for billing or the Generative Language API is not enabled in your Google Cloud Project. " +
-            "Please check your Google Cloud project settings and ensure billing is enabled and the Generative Language API is active. " +
-            "For image generation with `gemini-3-pro-image-preview` and video generation with Veo, you must select a paid API key via the 'ตั้งค่า API Key' button."
-        );
-    } else if (error.message && error.message.includes("Requested entity was not found.")) {
-        // This is the specific error mentioned in the guidelines for `window.aistudio` failure
-        if (window.aistudio && typeof window.aistudio.openSelectKey === 'function') {
-            console.warn("Veo API call failed with 'Requested entity was not found.'. Attempting to reset API key selection.");
-            // We cannot directly reset the AISTUDIO key selection, but we can instruct the user
-            throw new Error(
-              "การสร้างวิดีโอไม่สำเร็จ: ไม่พบเอนทิตีที่ร้องขอ (Requested entity was not found). " +
-              "โปรดตรวจสอบว่าคุณได้เลือก API Key ที่ถูกต้องจากโปรเจกต์ที่มีการตั้งค่าการเรียกเก็บเงินแล้วผ่านปุ่ม 'ตั้งค่า API Key'."
-            );
-        }
-    }
-    throw error;
-  }
-};
-
-/**
- * Generates an image of a character using the Gemini API.
- * Uses gemini-3-pro-image-preview model.
- * Uses `process.env.API_KEY` directly as required for models needing API Key selection.
- * @param prompt - The textual description of the character to generate.
- * @returns A base64 encoded image data URL.
- */
+// --- Character Image Generation ---
 export const generateCharacterImage = async (prompt: string): Promise<string> => {
-  // CRITICAL: Always use process.env.API_KEY for API calls to models like gemini-3-pro-image-preview
-  // as it's populated by window.aistudio.openSelectKey()
+  const modelName = 'gemini-3-pro-image-preview';
+  
   if (!process.env.API_KEY) {
-    throw new Error(
-      "API Key is not available. Please ensure you have selected a valid API Key " +
-      "via the 'ตั้งค่า API Key' button for `gemini-3-pro-image-preview` (from a paid GCP project)."
-    );
+    throw new Error("API Key is required. Please set it in the API Key Manager.");
+  }
+
+  // Check AISTUDIO key for gemini-3-pro-image-preview
+  if (window.aistudio && typeof window.aistudio.hasSelectedApiKey === 'function') {
+    const hasKey = await window.aistudio.hasSelectedApiKey();
+    if (!hasKey) {
+      await handleAistudioApiKeyError(modelName);
+      // After opening the dialog, we proceed. The new instance of GoogleGenAI below
+      // will pick up the updated process.env.API_KEY.
+    }
   }
 
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
   try {
-    const response = await ai.models.generateContent({
-      model: 'gemini-3-pro-image-preview', // Use a suitable image generation model
+    const response: GenerateContentResponse = await ai.models.generateContent({
+      model: modelName,
       contents: {
         parts: [
-          {
-            text: `Generate a realistic portrait image of: ${prompt}`,
-          },
+          { text: `${prompt}. Generate a realistic, high-quality image. Aspect ratio 1:1, image size 1K.` },
         ],
       },
       config: {
         imageConfig: {
-          aspectRatio: "1:1", // Default to square for character portraits
-          imageSize: "1K" // Default resolution
+          aspectRatio: "1:1",
+          imageSize: "1K"
+        },
+        tools: [{googleSearch: {}}], // Use googleSearch for enhanced context if available for this model
+      },
+    });
+
+    const imagePart = response.candidates?.[0]?.content?.parts?.find(part => part.inlineData);
+
+    if (imagePart?.inlineData?.data && imagePart.inlineData.mimeType) {
+      // Ensure data is string, TS2322 fix
+      const base64EncodeString: string = imagePart.inlineData.data; 
+      return `data:${imagePart.inlineData.mimeType};base64,${base64EncodeString}`;
+    } else {
+      const textOutput = response.text;
+      console.warn("No image data found in response. Text output:", textOutput);
+      throw new Error(`AI returned text instead of image or no image data: ${textOutput?.substring(0, 100) || 'No text content'}`);
+    }
+  } catch (error: any) {
+    console.error("Error from Gemini API (generateCharacterImage):", error);
+    // Specific handling for "Requested entity was not found." as per guidelines
+    if (error.message && error.message.includes("Requested entity was not found.")) {
+        // This means the selected key might be invalid/not billed for Veo
+        throw new Error("API Key configuration error. Please ensure your selected API Key is from a paid GCP project and enabled for this model. Requested entity was not found.");
+    }
+    throw new Error(`Failed to generate image: ${error.message || 'Unknown API error'}`);
+  }
+};
+
+
+// --- Storyboard Generation ---
+export const generateStoryboardFromPlot = async (plot: string, characters: Character[], moodContext: any): Promise<Scene[]> => {
+  if (!process.env.API_KEY) {
+    throw new Error("API Key is required. Please set it in the API Key Manager.");
+  }
+
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+  const characterDescriptions = characters.map(c => `${c.name} (${c.nameEn}): ${c.description}`).join('\n');
+
+  const fullPrompt = `Based on the following plot and character descriptions, generate a list of 3-5 distinct video scenes for a short film. Each scene should have a characterId (or 'none'), action, setting, shotType (e.g., Wide Angle, Close Up), and duration ('5s' or '8s'). Incorporate the global mood settings.
+
+Plot: ${plot}
+
+Characters:
+${characterDescriptions}
+
+Global Mood: Weather: ${moodContext.weather}, Atmosphere: ${moodContext.atmosphere}, Lighting: ${moodContext.lighting}, Intensity: ${moodContext.intensity}%.
+
+Output in JSON format as an array of Scene objects:
+[
+  {
+    "characterId": "character_id_here", 
+    "action": "Character doing something", 
+    "setting": "Location", 
+    "shotType": "Shot Type",
+    "duration": "5s"
+  }
+]`;
+
+  try {
+    const response: GenerateContentResponse = await ai.models.generateContent({
+      model: "gemini-2.5-flash", // Using gemini-2.5-flash for text tasks
+      contents: fullPrompt,
+      config: {
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: "ARRAY",
+          items: {
+            type: "OBJECT",
+            properties: {
+              characterId: { type: "STRING" },
+              action: { type: "STRING" },
+              setting: { type: "STRING" },
+              shotType: { type: "STRING" },
+              duration: { type: "STRING" },
+            },
+            required: ["characterId", "action", "setting", "shotType", "duration"],
+          },
         },
       },
     });
 
-    for (const part of response.candidates[0].content.parts) {
-      if (part.inlineData) {
-        const base64EncodeString: string = part.inlineData.data;
-        return `data:${part.inlineData.mimeType};base64,${base64EncodeString}`;
-      }
+    let jsonStr = response.text?.trim(); // Use optional chaining for response.text
+    if (!jsonStr) {
+      throw new Error("AI did not return any JSON content.");
     }
-    throw new Error("No image data found in the response.");
+
+    // Attempt to parse JSON, sometimes AI might add comments or extra text.
+    // Try to find the first and last brace to extract valid JSON
+    const firstBrace = jsonStr.indexOf('[');
+    const lastBrace = jsonStr.lastIndexOf(']');
+    if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
+      jsonStr = jsonStr.substring(firstBrace, lastBrace + 1);
+    } else {
+      console.warn("JSON string might be malformed or not an array:", jsonStr);
+    }
+    
+    const scenes: Scene[] = JSON.parse(jsonStr).map((s: any) => ({
+      ...s,
+      duration: s.duration === '8s' ? '8s' : '5s', // Ensure duration is valid type
+      generationStatus: 'idle'
+    }));
+    return scenes;
 
   } catch (error: any) {
-    console.error("Gemini Character Image Generation Error:", error);
-    if (error.message && error.message.includes("PERMISSION_DENIED")) {
-        throw new Error(
-            "Permission denied. This usually means your API Key is not configured for billing or the Generative Language API is not enabled in your Google Cloud Project. " +
-            "For `gemini-3-pro-image-preview`, you MUST select a paid API key via the 'ตั้งค่า API Key' button." +
-            "Please check your Google Cloud project settings and ensure billing is enabled and the Generative Language API is active. " +
-            "More info: ai.google.dev/gemini-api/docs/billing"
-        );
-    } else if (error.message && error.message.includes("Requested entity was not found.")) {
-        // This is the specific error mentioned in the guidelines for `window.aistudio` failure
-        if (window.aistudio && typeof window.aistudio.openSelectKey === 'function') {
-            console.warn("Image API call failed with 'Requested entity was not found.'. Attempting to reset API key selection.");
-            // We cannot directly reset the AISTUDIO key selection, but we can instruct the user
-            throw new Error(
-              "การสร้างภาพไม่สำเร็จ: ไม่พบเอนทิตีที่ร้องขอ (Requested entity was not found). " +
-              "โปรดตรวจสอบว่าคุณได้เลือก API Key ที่ถูกต้องจากโปรเจกต์ที่มีการตั้งค่าการเรียกเก็บเงินแล้วผ่านปุ่ม 'ตั้งค่า API Key'."
-            );
-        }
+    console.error("Error from Gemini API (generateStoryboardFromPlot):", error);
+    throw new Error(`Failed to generate storyboard: ${error.message || 'Unknown API error'}`);
+  }
+};
+
+
+// --- Video Generation (Veo) ---
+export const generateVeoVideo = async (prompt: string, aspectRatio: AspectRatio): Promise<string> => {
+  const modelName = 'veo-3.1-fast-generate-preview';
+
+  if (!process.env.API_KEY) {
+    throw new Error("API Key is required. Please set it in the API Key Manager.");
+  }
+
+  // Check AISTUDIO key for Veo models
+  if (window.aistudio && typeof window.aistudio.hasSelectedApiKey === 'function') {
+    const hasKey = await window.aistudio.hasSelectedApiKey();
+    if (!hasKey) {
+      await handleAistudioApiKeyError(modelName);
+      // After opening the dialog, we proceed. The new instance of GoogleGenAI below
+      // will pick up the updated process.env.API_KEY.
     }
-    throw error;
+  }
+
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+
+  try {
+    let operation = await ai.models.generateVideos({
+      model: modelName,
+      prompt: prompt,
+      config: {
+        numberOfVideos: 1,
+        resolution: '720p', // Default resolution for fast preview
+        aspectRatio: aspectRatio
+      }
+    });
+
+    while (!operation.done) {
+      await new Promise(resolve => setTimeout(resolve, 10000)); // Wait 10 seconds
+      operation = await ai.operations.getVideosOperation({operation: operation});
+    }
+
+    const downloadLink = operation.response?.generatedVideos?.[0]?.video?.uri;
+
+    if (!downloadLink) {
+      throw new Error("Video generation completed but no download link was returned.");
+    }
+    // The response.body contains the MP4 bytes. You must append an API key when fetching from the download link.
+    return `${downloadLink}&key=${process.env.API_KEY}`; // Ensure API key is appended for direct download
+  } catch (error: any) {
+    console.error("Error from Gemini API (generateVeoVideo):", error);
+    // Specific handling for "Requested entity was not found." as per guidelines
+    if (error.message && error.message.includes("Requested entity was not found.")) {
+        // This means the selected key might be invalid/not billed for Veo
+        throw new Error("API Key configuration error. Please ensure your selected API Key is from a paid GCP project and enabled for Veo. Requested entity was not found.");
+    }
+    throw new Error(`Failed to generate video: ${error.message || 'Unknown API error'}`);
+  }
+};
+
+// --- Creative Prompt Generation (Placeholder/Example) ---
+export const generateCreativePrompt = async (concept: string): Promise<string> => {
+  if (!process.env.API_KEY) {
+    throw new Error("API Key is required. Please set it in the API Key Manager.");
+  }
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+  
+  try {
+    const response: GenerateContentResponse = await ai.models.generateContent({
+      model: "gemini-2.5-flash", // Using gemini-2.5-flash for text tasks
+      contents: `Generate a highly creative and descriptive prompt for a video generation AI based on the concept: "${concept}". The prompt should be vivid, detailed, and inspire a visually stunning short video.`,
+      config: {
+        temperature: 0.9,
+        maxOutputTokens: 200,
+      }
+    });
+    return response.text || "Could not generate a creative prompt.";
+  } catch (error: any) {
+    console.error("Error from Gemini API (generateCreativePrompt):", error);
+    throw new Error(`Failed to generate creative prompt: ${error.message || 'Unknown API error'}`);
   }
 };
