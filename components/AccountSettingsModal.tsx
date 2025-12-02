@@ -1,6 +1,6 @@
 
 
-import React from 'react';
+import React, { useState } from 'react';
 import { X, ExternalLink, Mail, User, CheckCircle, Plus, Trash2 } from 'lucide-react';
 import { UserProfile } from '../types';
 import { openGoogleAccountChooser } from '../services/geminiService';

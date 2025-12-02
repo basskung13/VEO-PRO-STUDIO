@@ -1,5 +1,3 @@
-
-
 import React, { useState, useEffect } from 'react';
 import { Character, CharacterAttributes, CustomOption, ApiKey } from '../types';
 import { generateCharacterImage } from '../services/geminiService'; // Import the new service function
@@ -98,6 +96,7 @@ const CharacterStudio: React.FC<CharacterStudioProps> = ({ characters, onSaveCha
   // New state for aistudio API Key management
   const [aistudioKeySelected, setAistudioKeySelected] = useState(false);
   const [aistudioKeyCheckCompleted, setAistudioKeyCheckCompleted] = useState(false);
+  const [aistudioAvailable, setAistudioAvailable] = useState(false); // New state to track if window.aistudio is available
 
 
   const defaultAttributes: CharacterAttributes = {
@@ -141,13 +140,16 @@ const CharacterStudio: React.FC<CharacterStudioProps> = ({ characters, onSaveCha
   useEffect(() => {
     const checkAistudioKey = async () => {
       if (window.aistudio && typeof window.aistudio.hasSelectedApiKey === 'function') {
+        setAistudioAvailable(true); // aistudio is available
         const hasKey = await window.aistudio.hasSelectedApiKey();
         setAistudioKeySelected(hasKey);
-        setAistudioKeyCheckCompleted(true);
       } else {
-        console.warn("window.aistudio object or hasSelectedApiKey function not found.");
-        setAistudioKeyCheckCompleted(true); // Mark as completed even if aistudio is not available
+        // window.aistudio is not available, assume API key is managed externally via env var
+        setAistudioAvailable(false);
+        setAistudioKeySelected(true); // Optimistically assume key is set if aistudio isn't present
+        console.warn("window.aistudio object or hasSelectedApiKey function not found. Assuming API Key is managed externally.");
       }
+      setAistudioKeyCheckCompleted(true);
     };
     checkAistudioKey();
   }, []); // Run once on mount
@@ -290,24 +292,24 @@ const CharacterStudio: React.FC<CharacterStudioProps> = ({ characters, onSaveCha
       dialogueExample: '', // Clear dialogue example on randomize
       attr: {
         ...prev.attr,
-        gender: randomItem(combinedGenders),
-        ageGroup: randomItem(combinedAgeGroups),
-        skinTone: randomItem(combinedSkinTones),
-        faceShape: randomItem(combinedFaceShapes),
-        eyeColor: randomItem(combinedEyeColors),
-        hairStyle: randomItem(combinedHairStyles),
-        hairColor: randomItem(combinedHairColors),
-        bodyType: randomItem(combinedBodyTypes),
-        clothingStyle: randomItem(combinedClothingStyles),
-        clothingColor: Math.random() > 0.5 ? randomItem(combinedClothingColors) : '',
-        clothingDetail: Math.random() > 0.7 ? randomItem(combinedClothingDetails) : '',
-        personality: randomItem(combinedPersonalities),
-        currentMood: randomItem(combinedMoods),
-        accessories: randomItems(combinedAccessories, 2),
-        facialFeatures: randomItems(combinedFacialFeatures, 1),
-        weapons: Math.random() > 0.7 ? [randomItem(combinedWeapons)] : [],
-        eyeShape: randomItem(combinedEyeShapes),
-        hairTexture: randomItem(combinedHairTextures),
+        gender: combinedGenders.length > 0 ? randomItem(combinedGenders) : defaultAttributes.gender,
+        ageGroup: combinedAgeGroups.length > 0 ? randomItem(combinedAgeGroups) : defaultAttributes.ageGroup,
+        skinTone: combinedSkinTones.length > 0 ? randomItem(combinedSkinTones) : defaultAttributes.skinTone,
+        faceShape: combinedFaceShapes.length > 0 ? randomItem(combinedFaceShapes) : defaultAttributes.faceShape,
+        eyeColor: combinedEyeColors.length > 0 ? randomItem(combinedEyeColors) : defaultAttributes.eyeColor,
+        hairStyle: combinedHairStyles.length > 0 ? randomItem(combinedHairStyles) : defaultAttributes.hairStyle,
+        hairColor: combinedHairColors.length > 0 ? randomItem(combinedHairColors) : defaultAttributes.hairColor,
+        bodyType: combinedBodyTypes.length > 0 ? randomItem(combinedBodyTypes) : defaultAttributes.bodyType,
+        clothingStyle: combinedClothingStyles.length > 0 ? randomItem(combinedClothingStyles) : defaultAttributes.clothingStyle,
+        clothingColor: Math.random() > 0.5 && combinedClothingColors.length > 0 ? randomItem(combinedClothingColors) : '',
+        clothingDetail: Math.random() > 0.7 && combinedClothingDetails.length > 0 ? randomItem(combinedClothingDetails) : '',
+        personality: combinedPersonalities.length > 0 ? randomItem(combinedPersonalities) : defaultAttributes.personality,
+        currentMood: combinedMoods.length > 0 ? randomItem(combinedMoods) : defaultAttributes.currentMood,
+        accessories: combinedAccessories.length > 0 ? randomItems(combinedAccessories, 2) : [],
+        facialFeatures: combinedFacialFeatures.length > 0 ? randomItems(combinedFacialFeatures, 1) : [],
+        weapons: Math.random() > 0.7 && combinedWeapons.length > 0 ? [randomItem(combinedWeapons)] : [],
+        eyeShape: combinedEyeShapes.length > 0 ? randomItem(combinedEyeShapes) : defaultAttributes.eyeShape,
+        hairTexture: combinedHairTextures.length > 0 ? randomItem(combinedHairTextures) : defaultAttributes.hairTexture,
       }
     }));
     setCharacterImageUrl(null); // Clear image on randomize
@@ -359,30 +361,30 @@ const CharacterStudio: React.FC<CharacterStudioProps> = ({ characters, onSaveCha
     setCharacterImageUrl(null); // Clear previous image
 
     try {
-      // Step 1: Check and open aistudio API key selection if needed
-      if (window.aistudio && typeof window.aistudio.hasSelectedApiKey === 'function') {
-        const hasAistudioKey = await window.aistudio.hasSelectedApiKey();
-        if (!hasAistudioKey) {
-          alert("สำหรับ `gemini-3-pro-image-preview` คุณต้องเลือก API Key ที่ผูกกับการเรียกเก็บเงินแล้ว ผ่านหน้าต่าง 'ตั้งค่า API Key' ที่จะเปิดขึ้นมา");
-          await window.aistudio.openSelectKey();
-          // Assume success after openSelectKey() and proceed
-          setAistudioKeySelected(true); // Optimistically update state
+      // Step 1: Conditionally check and open aistudio API key selection if window.aistudio is available
+      if (aistudioAvailable) { // Only attempt if aistudio is actually detected
+        if (window.aistudio && typeof window.aistudio.hasSelectedApiKey === 'function') {
+          const hasAistudioKey = await window.aistudio.hasSelectedApiKey();
+          if (!hasAistudioKey) {
+            alert("สำหรับ `gemini-3-pro-image-preview` คุณต้องเลือก API Key ที่ผูกกับการเรียกเก็บเงินแล้ว ผ่านหน้าต่าง 'ตั้งค่า API Key' ที่จะเปิดขึ้นมา");
+            await window.aistudio.openSelectKey();
+            setAistudioKeySelected(true); // Optimistically update state
+          }
         }
-      } else {
-        setImageError("API Key selection (window.aistudio) is not available. Ensure your environment supports it.");
-        setIsImageGenerating(false);
-        return;
-      }
+      } 
+      // Proceed with API call. If aistudio is not available, we assume process.env.API_KEY is configured.
+      // If aistudio is available, we assume the user has selected a key or will select one.
       
       const prompt = generateDescription(); // Use the existing generateDescription
       const imageUrl = await generateCharacterImage(prompt); // service function now uses process.env.API_KEY
       setCharacterImageUrl(imageUrl);
+
     } catch (e: any) {
       console.error("Error generating character image:", e);
       setImageError(e.message || "ไม่สามารถสร้างภาพได้. โปรดตรวจสอบ API Key หรือลองอีกครั้ง.");
       // Specific handling for "Requested entity was not found." as per guidelines
-      if (e.message && e.message.includes("Requested entity was not found.")) {
-        setAistudioKeySelected(false); // Reset AISTUDIO key selection state for a retry
+      if (e.message && e.message.includes("Requested entity was not found.") && aistudioAvailable) {
+        setAistudioKeySelected(false); // Reset AISTUDIO key selection state for a retry only if aistudio is available
       }
     } finally {
       setIsImageGenerating(false);
@@ -406,7 +408,12 @@ const CharacterStudio: React.FC<CharacterStudioProps> = ({ characters, onSaveCha
   };
 
   // Determine if the "Generate Image" button should be interactable
-  const isGenerateImageButtonDisabled = isImageGenerating || (!aistudioKeyCheckCompleted);
+  // Button is disabled if:
+  // 1. Image is currently generating
+  // 2. Aistudio key check is not completed yet
+  // 3. (If Aistudio is available) Aistudio key has not been selected
+  const isGenerateImageButtonDisabled = isImageGenerating || !aistudioKeyCheckCompleted || (aistudioAvailable && !aistudioKeySelected);
+
 
   // Pre-fetch combined options for rendering
   const combinedGenders = getCombinedOptions('gender');
@@ -479,7 +486,7 @@ const CharacterStudio: React.FC<CharacterStudioProps> = ({ characters, onSaveCha
       </div>
 
       {/* Main Form */}
-      <div className="flex-1 bg-slate-900 border border-slate-700 rounded-xl overflow-hidden flex flex-col">
+      <div className="flex-1 bg-slate-900 border border-slate-700 rounded-xl flex flex-col relative z-[1000]">
         <div className="p-4 bg-slate-950 border-b border-slate-800 flex justify-between items-center">
           <div className="flex items-center gap-3">
             <h2 className="text-white text-lg font-bold">
@@ -509,7 +516,7 @@ const CharacterStudio: React.FC<CharacterStudioProps> = ({ characters, onSaveCha
           </div>
         </div>
 
-        <div className="flex-1 overflow-y-auto p-6 grid grid-cols-1 xl:grid-cols-2 gap-6">
+        <div className="flex-1 p-6 grid grid-cols-1 xl:grid-cols-2 gap-6">
           {/* Left Panel: Character Attributes */}
           <div className="space-y-6">
             <div className="bg-slate-950/50 p-4 rounded-xl border border-slate-800 space-y-4">
@@ -593,7 +600,8 @@ const CharacterStudio: React.FC<CharacterStudioProps> = ({ characters, onSaveCha
                     </>
                   )}
                 </button>
-                {aistudioKeyCheckCompleted && !aistudioKeySelected && !isImageGenerating && (
+                {/* Fix: Changed `aistudioCheckCompleted` to `aistudioKeyCheckCompleted` */}
+                {aistudioKeyCheckCompleted && aistudioAvailable && !aistudioKeySelected && !isImageGenerating && (
                   <button 
                     onClick={onOpenApiKeyManager}
                     className="text-xs text-center text-amber-500 cursor-pointer hover:underline flex items-center gap-1"
@@ -666,7 +674,7 @@ const CharacterStudio: React.FC<CharacterStudioProps> = ({ characters, onSaveCha
             </div>
 
             <div className="bg-slate-950/50 p-4 rounded-xl border border-slate-800">
-              <h3 className="text-slate-300 font-bold uppercase text-xs tracking-wider flex items-center gap-2 mb-4">
+              <h3 className="text-slate-300 font-bold uppercase text-xs tracking-wider flex items-center gap-2">
                 <Filter size={16}/> จัดการตัวเลือกเอง (Custom Options)
               </h3>
               <div className="mb-4">
@@ -713,7 +721,7 @@ const CharacterStudio: React.FC<CharacterStudioProps> = ({ characters, onSaveCha
           </div>
 
           {/* Right Panel: Detailed Attributes */}
-          <div className="space-y-6">
+          <div className="space-y-6 overflow-y-auto pr-2 pb-6">
             <div className="bg-slate-950/50 p-4 rounded-xl border border-slate-800 space-y-4">
               <h3 className="text-slate-300 font-bold uppercase text-xs tracking-wider flex items-center gap-2">
                 <Palette size={16}/> รูปลักษณ์ (Appearance)
@@ -727,7 +735,11 @@ const CharacterStudio: React.FC<CharacterStudioProps> = ({ characters, onSaveCha
                   onChange={e => setForm(prev => ({ ...prev, attr: { ...prev.attr, gender: e.target.value } }))}
                   className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm focus:border-emerald-500 outline-none"
                 >
-                  {combinedGenders.map(option => <option key={option} value={option}>{option}</option>)}
+                  {combinedGenders.length > 0 ? (
+                    combinedGenders.map(option => <option key={option} value={option}>{option}</option>)
+                  ) : (
+                    <option value="">(ไม่มีตัวเลือก)</option>
+                  )}
                 </select>
               </div>
 
@@ -739,7 +751,11 @@ const CharacterStudio: React.FC<CharacterStudioProps> = ({ characters, onSaveCha
                   onChange={e => setForm(prev => ({ ...prev, attr: { ...prev.attr, ageGroup: e.target.value } }))}
                   className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm focus:border-emerald-500 outline-none"
                 >
-                  {combinedAgeGroups.map(option => <option key={option} value={option}>{option}</option>)}
+                  {combinedAgeGroups.length > 0 ? (
+                    combinedAgeGroups.map(option => <option key={option} value={option}>{option}</option>)
+                  ) : (
+                    <option value="">(ไม่มีตัวเลือก)</option>
+                  )}
                 </select>
               </div>
 
@@ -751,7 +767,11 @@ const CharacterStudio: React.FC<CharacterStudioProps> = ({ characters, onSaveCha
                   onChange={e => setForm(prev => ({ ...prev, attr: { ...prev.attr, skinTone: e.target.value } }))}
                   className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm focus:border-emerald-500 outline-none"
                 >
-                  {combinedSkinTones.map(option => <option key={option} value={option}>{option}</option>)}
+                  {combinedSkinTones.length > 0 ? (
+                    combinedSkinTones.map(option => <option key={option} value={option}>{option}</option>)
+                  ) : (
+                    <option value="">(ไม่มีตัวเลือก)</option>
+                  )}
                 </select>
               </div>
               
@@ -763,7 +783,11 @@ const CharacterStudio: React.FC<CharacterStudioProps> = ({ characters, onSaveCha
                   onChange={e => setForm(prev => ({ ...prev, attr: { ...prev.attr, faceShape: e.target.value } }))}
                   className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm focus:border-emerald-500 outline-none"
                 >
-                  {combinedFaceShapes.map(option => <option key={option} value={option}>{option}</option>)}
+                  {combinedFaceShapes.length > 0 ? (
+                    combinedFaceShapes.map(option => <option key={option} value={option}>{option}</option>)
+                  ) : (
+                    <option value="">(ไม่มีตัวเลือก)</option>
+                  )}
                 </select>
               </div>
 
@@ -775,7 +799,11 @@ const CharacterStudio: React.FC<CharacterStudioProps> = ({ characters, onSaveCha
                   onChange={e => setForm(prev => ({ ...prev, attr: { ...prev.attr, eyeShape: e.target.value } }))}
                   className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm focus:border-emerald-500 outline-none"
                 >
-                  {combinedEyeShapes.map(option => <option key={option} value={option}>{option}</option>)}
+                  {combinedEyeShapes.length > 0 ? (
+                    combinedEyeShapes.map(option => <option key={option} value={option}>{option}</option>)
+                  ) : (
+                    <option value="">(ไม่มีตัวเลือก)</option>
+                  )}
                 </select>
               </div>
 
@@ -787,7 +815,11 @@ const CharacterStudio: React.FC<CharacterStudioProps> = ({ characters, onSaveCha
                   onChange={e => setForm(prev => ({ ...prev, attr: { ...prev.attr, eyeColor: e.target.value } }))}
                   className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm focus:border-emerald-500 outline-none"
                 >
-                  {combinedEyeColors.map(option => <option key={option} value={option}>{option}</option>)}
+                  {combinedEyeColors.length > 0 ? (
+                    combinedEyeColors.map(option => <option key={option} value={option}>{option}</option>)
+                  ) : (
+                    <option value="">(ไม่มีตัวเลือก)</option>
+                  )}
                 </select>
               </div>
 
@@ -799,7 +831,11 @@ const CharacterStudio: React.FC<CharacterStudioProps> = ({ characters, onSaveCha
                   onChange={e => setForm(prev => ({ ...prev, attr: { ...prev.attr, hairStyle: e.target.value } }))}
                   className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm focus:border-emerald-500 outline-none"
                 >
-                  {combinedHairStyles.map(option => <option key={option} value={option}>{option}</option>)}
+                  {combinedHairStyles.length > 0 ? (
+                    combinedHairStyles.map(option => <option key={option} value={option}>{option}</option>)
+                  ) : (
+                    <option value="">(ไม่มีตัวเลือก)</option>
+                  )}
                 </select>
               </div>
 
@@ -811,7 +847,11 @@ const CharacterStudio: React.FC<CharacterStudioProps> = ({ characters, onSaveCha
                   onChange={e => setForm(prev => ({ ...prev, attr: { ...prev.attr, hairColor: e.target.value } }))}
                   className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm focus:border-emerald-500 outline-none"
                 >
-                  {combinedHairColors.map(option => <option key={option} value={option}>{option}</option>)}
+                  {combinedHairColors.length > 0 ? (
+                    combinedHairColors.map(option => <option key={option} value={option}>{option}</option>)
+                  ) : (
+                    <option value="">(ไม่มีตัวเลือก)</option>
+                  )}
                 </select>
               </div>
 
@@ -823,7 +863,11 @@ const CharacterStudio: React.FC<CharacterStudioProps> = ({ characters, onSaveCha
                   onChange={e => setForm(prev => ({ ...prev, attr: { ...prev.attr, hairTexture: e.target.value } }))}
                   className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm focus:border-emerald-500 outline-none"
                 >
-                  {combinedHairTextures.map(option => <option key={option} value={option}>{option}</option>)}
+                  {combinedHairTextures.length > 0 ? (
+                    combinedHairTextures.map(option => <option key={option} value={option}>{option}</option>)
+                  ) : (
+                    <option value="">(ไม่มีตัวเลือก)</option>
+                  )}
                 </select>
               </div>
 
@@ -831,19 +875,23 @@ const CharacterStudio: React.FC<CharacterStudioProps> = ({ characters, onSaveCha
               <div>
                 <label className="block text-slate-400 text-xs font-semibold mb-1">จุดเด่นบนใบหน้า (Facial Features)</label>
                 <div className="flex flex-wrap gap-2">
-                  {combinedFacialFeatures.map(option => (
-                    <span 
-                      key={option} 
-                      onClick={() => toggleTag('facialFeatures', option)}
-                      className={`cursor-pointer px-3 py-1 text-xs rounded-full border transition-all ${
-                        form.attr.facialFeatures.includes(option) 
-                          ? 'bg-emerald-900/50 border-emerald-500 text-emerald-100' 
-                          : 'bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-700'
-                      }`}
-                    >
-                      {option}
-                    </span>
-                  ))}
+                  {combinedFacialFeatures.length > 0 ? (
+                    combinedFacialFeatures.map(option => (
+                      <span 
+                        key={option} 
+                        onClick={() => toggleTag('facialFeatures', option)}
+                        className={`cursor-pointer px-3 py-1 text-xs rounded-full border transition-all ${
+                          form.attr.facialFeatures.includes(option) 
+                            ? 'bg-emerald-900/50 border-emerald-500 text-emerald-100' 
+                            : 'bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-700'
+                        }`}
+                      >
+                        {option}
+                      </span>
+                    ))
+                  ) : (
+                    <p className="text-slate-500 text-xs">(ไม่มีตัวเลือก)</p>
+                  )}
                 </div>
               </div>
 
@@ -855,7 +903,11 @@ const CharacterStudio: React.FC<CharacterStudioProps> = ({ characters, onSaveCha
                   onChange={e => setForm(prev => ({ ...prev, attr: { ...prev.attr, bodyType: e.target.value } }))}
                   className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm focus:border-emerald-500 outline-none"
                 >
-                  {combinedBodyTypes.map(option => <option key={option} value={option}>{option}</option>)}
+                  {combinedBodyTypes.length > 0 ? (
+                    combinedBodyTypes.map(option => <option key={option} value={option}>{option}</option>)
+                  ) : (
+                    <option value="">(ไม่มีตัวเลือก)</option>
+                  )}
                 </select>
               </div>
             </div>
@@ -873,7 +925,11 @@ const CharacterStudio: React.FC<CharacterStudioProps> = ({ characters, onSaveCha
                   onChange={e => setForm(prev => ({ ...prev, attr: { ...prev.attr, clothingStyle: e.target.value } }))}
                   className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm focus:border-emerald-500 outline-none"
                 >
-                  {combinedClothingStyles.map(option => <option key={option} value={option}>{option}</option>)}
+                  {combinedClothingStyles.length > 0 ? (
+                    combinedClothingStyles.map(option => <option key={option} value={option}>{option}</option>)
+                  ) : (
+                    <option value="">(ไม่มีตัวเลือก)</option>
+                  )}
                 </select>
               </div>
 
@@ -886,7 +942,9 @@ const CharacterStudio: React.FC<CharacterStudioProps> = ({ characters, onSaveCha
                   className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm focus:border-emerald-500 outline-none"
                 >
                   <option value="">(ไม่ระบุ)</option>
-                  {combinedClothingColors.map(option => <option key={option} value={option}>{option}</option>)}
+                  {combinedClothingColors.length > 0 ? (
+                    combinedClothingColors.map(option => <option key={option} value={option}>{option}</option>)
+                  ) : null}
                 </select>
               </div>
 
@@ -899,7 +957,9 @@ const CharacterStudio: React.FC<CharacterStudioProps> = ({ characters, onSaveCha
                   className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm focus:border-emerald-500 outline-none"
                 >
                   <option value="">(ไม่ระบุ)</option>
-                  {combinedClothingDetails.map(option => <option key={option} value={option}>{option}</option>)}
+                  {combinedClothingDetails.length > 0 ? (
+                    combinedClothingDetails.map(option => <option key={option} value={option}>{option}</option>)
+                  ) : null}
                 </select>
               </div>
 
@@ -907,19 +967,23 @@ const CharacterStudio: React.FC<CharacterStudioProps> = ({ characters, onSaveCha
               <div>
                 <label className="block text-slate-400 text-xs font-semibold mb-1">เครื่องประดับ (Accessories)</label>
                 <div className="flex flex-wrap gap-2">
-                  {combinedAccessories.map(option => (
-                    <span 
-                      key={option} 
-                      onClick={() => toggleTag('accessories', option)}
-                      className={`cursor-pointer px-3 py-1 text-xs rounded-full border transition-all ${
-                        form.attr.accessories.includes(option) 
-                          ? 'bg-emerald-900/50 border-emerald-500 text-emerald-100' 
-                          : 'bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-700'
-                      }`}
-                    >
-                      {option}
-                    </span>
-                  ))}
+                  {combinedAccessories.length > 0 ? (
+                    combinedAccessories.map(option => (
+                      <span 
+                        key={option} 
+                        onClick={() => toggleTag('accessories', option)}
+                        className={`cursor-pointer px-3 py-1 text-xs rounded-full border transition-all ${
+                          form.attr.accessories.includes(option) 
+                            ? 'bg-emerald-900/50 border-emerald-500 text-emerald-100' 
+                            : 'bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-700'
+                        }`}
+                      >
+                        {option}
+                      </span>
+                    ))
+                  ) : (
+                    <p className="text-slate-500 text-xs">(ไม่มีตัวเลือก)</p>
+                  )}
                 </div>
               </div>
 
@@ -927,19 +991,23 @@ const CharacterStudio: React.FC<CharacterStudioProps> = ({ characters, onSaveCha
               <div>
                 <label className="block text-slate-400 text-xs font-semibold mb-1">อาวุธ/ของถือ (Weapons)</label>
                 <div className="flex flex-wrap gap-2">
-                  {combinedWeapons.map(option => (
-                    <span 
-                      key={option} 
-                      onClick={() => toggleTag('weapons', option)}
-                      className={`cursor-pointer px-3 py-1 text-xs rounded-full border transition-all ${
-                        form.attr.weapons.includes(option) 
-                          ? 'bg-emerald-900/50 border-emerald-500 text-emerald-100' 
-                          : 'bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-700'
-                      }`}
-                    >
-                      {option}
-                    </span>
-                  ))}
+                  {combinedWeapons.length > 0 ? (
+                    combinedWeapons.map(option => (
+                      <span 
+                        key={option} 
+                        onClick={() => toggleTag('weapons', option)}
+                        className={`cursor-pointer px-3 py-1 text-xs rounded-full border transition-all ${
+                          form.attr.weapons.includes(option) 
+                            ? 'bg-emerald-900/50 border-emerald-500 text-emerald-100' 
+                            : 'bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-700'
+                        }`}
+                      >
+                        {option}
+                      </span>
+                    ))
+                  ) : (
+                    <p className="text-slate-500 text-xs">(ไม่มีตัวเลือก)</p>
+                  )}
                 </div>
               </div>
             </div>
@@ -957,7 +1025,11 @@ const CharacterStudio: React.FC<CharacterStudioProps> = ({ characters, onSaveCha
                   onChange={e => setForm(prev => ({ ...prev, attr: { ...prev.attr, personality: e.target.value } }))}
                   className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm focus:border-emerald-500 outline-none"
                 >
-                  {combinedPersonalities.map(option => <option key={option} value={option}>{option}</option>)}
+                  {combinedPersonalities.length > 0 ? (
+                    combinedPersonalities.map(option => <option key={option} value={option}>{option}</option>)
+                  ) : (
+                    <option value="">(ไม่มีตัวเลือก)</option>
+                  )}
                 </select>
               </div>
 
@@ -969,7 +1041,11 @@ const CharacterStudio: React.FC<CharacterStudioProps> = ({ characters, onSaveCha
                   onChange={e => setForm(prev => ({ ...prev, attr: { ...prev.attr, currentMood: e.target.value } }))}
                   className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm focus:border-emerald-500 outline-none"
                 >
-                  {combinedMoods.map(option => <option key={option} value={option}>{option}</option>)}
+                  {combinedMoods.length > 0 ? (
+                    combinedMoods.map(option => <option key={option} value={option}>{option}</option>)
+                  ) : (
+                    <option value="">(ไม่มีตัวเลือก)</option>
+                  )}
                 </select>
               </div>
             </div>

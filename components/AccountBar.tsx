@@ -1,5 +1,4 @@
 
-
 import React, { useState } from 'react';
 import { Users, ChevronDown, Check, Edit2, X, Settings, LogOut } from 'lucide-react';
 import { UserProfile, LoggedInUser } from '../types';
@@ -119,7 +118,7 @@ const AccountBar: React.FC<AccountBarProps> = ({
             </button>
 
             {isOpen && (
-                <div className="absolute top-full right-0 mt-2 w-72 bg-slate-900 border border-slate-700 rounded-xl shadow-xl overflow-hidden z-50 animate-in fade-in slide-in-from-top-2 duration-200">
+                <div className="absolute top-full right-0 mt-2 w-72 bg-slate-900 border border-slate-700 rounded-xl shadow-xl overflow-hidden z-[999] animate-in fade-in slide-in-from-top-2 duration-200">
                     <div className="p-3 bg-slate-950 border-b border-slate-800 flex justify-between items-center">
                         <p className="text-[10px] text-slate-500 uppercase font-bold">Select Browser Profile</p>
                     </div>

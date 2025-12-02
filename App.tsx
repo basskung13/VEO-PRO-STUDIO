@@ -246,8 +246,20 @@ const App: React.FC = () => {
       if (savedApiKeys) setApiKeys(JSON.parse(savedApiKeys));
       if (savedActiveKey) setActiveKeyId(savedActiveKey);
       if (savedCharacters) setCharacters(JSON.parse(savedCharacters));
+
+      // NEW: Robustly load custom options
       if (savedCustomOptions) {
-        setCustomOptions(JSON.parse(savedCustomOptions)); // Load custom options
+        try {
+          const parsedOptions = JSON.parse(savedCustomOptions);
+          if (Array.isArray(parsedOptions) && parsedOptions.length > 0) {
+            setCustomOptions(parsedOptions);
+          } else {
+            setCustomOptions(DEFAULT_CUSTOM_OPTIONS_DATA); // If parsed to empty array, use defaults
+          }
+        } catch (parseError) {
+          console.error("Failed to parse saved custom options, using defaults.", parseError);
+          setCustomOptions(DEFAULT_CUSTOM_OPTIONS_DATA); // If parsing error, use defaults
+        }
       } else {
         setCustomOptions(DEFAULT_CUSTOM_OPTIONS_DATA); // Initialize with defaults if not found
       }
@@ -456,7 +468,7 @@ const App: React.FC = () => {
       <main className="container mx-auto px-4 pt-6 flex flex-col items-center">
         
         {currentView === 'characters' ? (
-             <div className="w-full max-w-6xl animate-fade-in-up">
+             <div className="w-full max-w-6xl">
                  <CharacterStudio 
                     characters={characters}
                     onSaveCharacter={(newChar) => {

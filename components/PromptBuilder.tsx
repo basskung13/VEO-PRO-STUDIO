@@ -1,9 +1,9 @@
 
-
 import React, { useState } from 'react';
 import { Scene, Character, ApiKey, AspectRatio } from '../types';
-import { Sparkles, Plus, Trash2, Film, Video, Copy, Play, AlertCircle, Wand2, Sun, Mic2, Loader2, MonitorPlay } from 'lucide-react';
 import { generateStoryboardFromPlot, generateVeoVideo, generateCreativePrompt } from '../services/geminiService'; // Import generateCreativePrompt
+// Add missing Lucide React icons
+import { Film, Sun, Mic2, Wand2, AlertCircle, Video, Plus, Trash2, Copy, MonitorPlay } from 'lucide-react';
 
 interface PromptBuilderProps {
   characters: Character[];

@@ -7,6 +7,27 @@
     <title>Veo Studio</title>
     <!-- Tailwind CSS is included via CDN for simplicity, or can be built with Vite/PostCSS -->
     <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+      /* Basic CSS Reset and Stacking Context Fixes for Dropdowns */
+      html, body {
+        height: 100%;
+        margin: 0;
+        padding: 0;
+        /* Ensure html and body establish a proper stacking context */
+        position: relative;
+        z-index: 1; /* Default stacking context */
+        box-sizing: border-box;
+      }
+      #root {
+        height: 100%;
+        margin: 0;
+        padding: 0;
+        /* Ensure the root element of the React app is above other potential page elements */
+        position: relative;
+        z-index: 10; /* Higher z-index for the main app content */
+        box-sizing: border-box;
+      }
+    </style>
     <!-- Vite will inject its own script tags here for bundled JavaScript/CSS -->
   <script type="importmap">
 {

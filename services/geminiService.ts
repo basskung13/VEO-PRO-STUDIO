@@ -2,9 +2,6 @@
 import { PromptConfig, Scene, Character, AspectRatio } from "../types";
 import { GoogleGenAI, GenerateContentResponse } from "@google/genai"; // Import GenerateContentResponse for type safety
 
-// Removed duplicate declare global for window.aistudio.
-// The type definition for window.aistudio is already handled in types.ts
-
 // Helper to construct the text prompt optimized for Gemini Web
 export const constructVeoPrompt = (config: PromptConfig): string => {
   let baseCommand = `Create a video of ${config.prompt.trim()}`;
@@ -55,13 +52,15 @@ export const openGoogleAccountChooser = (authIndex: number, email?: string) => {
 
 
 // Function to handle common API key error logic for AISTUDIO models
+// This function will only be called if window.aistudio is present
 const handleAistudioApiKeyError = async (modelName: string) => {
   if (window.aistudio && typeof window.aistudio.openSelectKey === 'function') {
     alert(`สำหรับ '${modelName}' คุณต้องเลือก API Key ที่ผูกกับการเรียกเก็บเงินแล้ว ผ่านหน้าต่าง 'ตั้งค่า API Key' ที่จะเปิดขึ้นมา`);
     await window.aistudio.openSelectKey();
     // Assuming success after openSelectKey() as per guidelines, no delay needed for race condition.
   } else {
-    throw new Error(`API Key selection (window.aistudio) is not available for ${modelName}. Ensure your environment supports it.`);
+    // This branch should theoretically not be hit if checks are done before calling this function
+    throw new Error(`ระบบเลือก API Key (window.aistudio) ไม่พร้อมใช้งาน. โปรดตรวจสอบสภาพแวดล้อมของคุณรองรับหรือไม่.`);
   }
 };
 
@@ -70,10 +69,10 @@ export const generateCharacterImage = async (prompt: string): Promise<string> =>
   const modelName = 'gemini-3-pro-image-preview';
   
   if (!process.env.API_KEY) {
-    throw new Error("API Key is required. Please set it in the API Key Manager.");
+    throw new Error("API Key จำเป็นต้องมี. โปรดตั้งค่าในตัวจัดการ API Key.");
   }
 
-  // Check AISTUDIO key for gemini-3-pro-image-preview
+  // Conditionally check AISTUDIO key if window.aistudio is available
   if (window.aistudio && typeof window.aistudio.hasSelectedApiKey === 'function') {
     const hasKey = await window.aistudio.hasSelectedApiKey();
     if (!hasKey) {
@@ -102,25 +101,26 @@ export const generateCharacterImage = async (prompt: string): Promise<string> =>
       },
     });
 
+    // Use optional chaining for safer access and type assertion for data
     const imagePart = response.candidates?.[0]?.content?.parts?.find(part => part.inlineData);
 
     if (imagePart?.inlineData?.data && imagePart.inlineData.mimeType) {
       // Ensure data is string, TS2322 fix
-      const base64EncodeString: string = imagePart.inlineData.data; 
+      const base64EncodeString: string = imagePart.inlineData.data as string; 
       return `data:${imagePart.inlineData.mimeType};base64,${base64EncodeString}`;
     } else {
       const textOutput = response.text;
       console.warn("No image data found in response. Text output:", textOutput);
-      throw new Error(`AI returned text instead of image or no image data: ${textOutput?.substring(0, 100) || 'No text content'}`);
+      throw new Error(`AI ส่งคืนข้อความแทนรูปภาพหรือไม่มีข้อมูลรูปภาพ: ${textOutput?.substring(0, 100) || 'ไม่มีเนื้อหาข้อความ'}`);
     }
   } catch (error: any) {
     console.error("Error from Gemini API (generateCharacterImage):", error);
     // Specific handling for "Requested entity was not found." as per guidelines
     if (error.message && error.message.includes("Requested entity was not found.")) {
         // This means the selected key might be invalid/not billed for Veo
-        throw new Error("API Key configuration error. Please ensure your selected API Key is from a paid GCP project and enabled for this model. Requested entity was not found.");
+        throw new Error("ข้อผิดพลาดในการกำหนดค่า API Key. โปรดตรวจสอบว่า API Key ที่เลือกมาจากโปรเจกต์ GCP ที่มีการเรียกเก็บเงินและเปิดใช้งานสำหรับโมเดลนี้แล้ว. เอนทิตีที่ร้องขอไม่พบ.");
     }
-    throw new Error(`Failed to generate image: ${error.message || 'Unknown API error'}`);
+    throw new Error(`ไม่สามารถสร้างรูปภาพได้: ${error.message || 'ข้อผิดพลาด API ไม่ทราบสาเหตุ'}`);
   }
 };
 
@@ -128,7 +128,7 @@ export const generateCharacterImage = async (prompt: string): Promise<string> =>
 // --- Storyboard Generation ---
 export const generateStoryboardFromPlot = async (plot: string, characters: Character[], moodContext: any): Promise<Scene[]> => {
   if (!process.env.API_KEY) {
-    throw new Error("API Key is required. Please set it in the API Key Manager.");
+    throw new Error("API Key จำเป็นต้องมี. โปรดตั้งค่าในตัวจัดการ API Key.");
   }
 
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
@@ -179,7 +179,7 @@ Output in JSON format as an array of Scene objects:
 
     let jsonStr = response.text?.trim(); // Use optional chaining for response.text
     if (!jsonStr) {
-      throw new Error("AI did not return any JSON content.");
+      throw new Error("AI ไม่ได้ส่งคืนเนื้อหา JSON ใดๆ.");
     }
 
     // Attempt to parse JSON, sometimes AI might add comments or extra text.
@@ -189,7 +189,7 @@ Output in JSON format as an array of Scene objects:
     if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
       jsonStr = jsonStr.substring(firstBrace, lastBrace + 1);
     } else {
-      console.warn("JSON string might be malformed or not an array:", jsonStr);
+      console.warn("สตริง JSON อาจเสียหายหรือไม่ใช่อาร์เรย์:", jsonStr);
     }
     
     const scenes: Scene[] = JSON.parse(jsonStr).map((s: any) => ({
@@ -201,7 +201,7 @@ Output in JSON format as an array of Scene objects:
 
   } catch (error: any) {
     console.error("Error from Gemini API (generateStoryboardFromPlot):", error);
-    throw new Error(`Failed to generate storyboard: ${error.message || 'Unknown API error'}`);
+    throw new Error(`ไม่สามารถสร้างสตอรี่บอร์ดได้: ${error.message || 'ข้อผิดพลาด API ไม่ทราบสาเหตุ'}`);
   }
 };
 
@@ -211,10 +211,10 @@ export const generateVeoVideo = async (prompt: string, aspectRatio: AspectRatio)
   const modelName = 'veo-3.1-fast-generate-preview';
 
   if (!process.env.API_KEY) {
-    throw new Error("API Key is required. Please set it in the API Key Manager.");
+    throw new Error("API Key จำเป็นต้องมี. โปรดตั้งค่าในตัวจัดการ API Key.");
   }
 
-  // Check AISTUDIO key for Veo models
+  // Conditionally check AISTUDIO key for Veo models
   if (window.aistudio && typeof window.aistudio.hasSelectedApiKey === 'function') {
     const hasKey = await window.aistudio.hasSelectedApiKey();
     if (!hasKey) {
@@ -245,7 +245,7 @@ export const generateVeoVideo = async (prompt: string, aspectRatio: AspectRatio)
     const downloadLink = operation.response?.generatedVideos?.[0]?.video?.uri;
 
     if (!downloadLink) {
-      throw new Error("Video generation completed but no download link was returned.");
+      throw new Error("การสร้างวิดีโอเสร็จสมบูรณ์ แต่ไม่มีลิงก์ดาวน์โหลดส่งคืน.");
     }
     // The response.body contains the MP4 bytes. You must append an API key when fetching from the download link.
     return `${downloadLink}&key=${process.env.API_KEY}`; // Ensure API key is appended for direct download
@@ -254,16 +254,16 @@ export const generateVeoVideo = async (prompt: string, aspectRatio: AspectRatio)
     // Specific handling for "Requested entity was not found." as per guidelines
     if (error.message && error.message.includes("Requested entity was not found.")) {
         // This means the selected key might be invalid/not billed for Veo
-        throw new Error("API Key configuration error. Please ensure your selected API Key is from a paid GCP project and enabled for Veo. Requested entity was not found.");
+        throw new Error("ข้อผิดพลาดในการกำหนดค่า API Key. โปรดตรวจสอบว่า API Key ที่เลือกมาจากโปรเจกต์ GCP ที่มีการเรียกเก็บเงินและเปิดใช้งานสำหรับ Veo แล้ว. เอนทิตีที่ร้องขอไม่พบ.");
     }
-    throw new Error(`Failed to generate video: ${error.message || 'Unknown API error'}`);
+    throw new Error(`ไม่สามารถสร้างวิดีโอได้: ${error.message || 'ข้อผิดพลาด API ไม่ทราบสาเหตุ'}`);
   }
 };
 
 // --- Creative Prompt Generation (Placeholder/Example) ---
 export const generateCreativePrompt = async (concept: string): Promise<string> => {
   if (!process.env.API_KEY) {
-    throw new Error("API Key is required. Please set it in the API Key Manager.");
+    throw new Error("API Key จำเป็นต้องมี. โปรดตั้งค่าในตัวจัดการ API Key.");
   }
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   
@@ -276,9 +276,9 @@ export const generateCreativePrompt = async (concept: string): Promise<string> =
         maxOutputTokens: 200,
       }
     });
-    return response.text || "Could not generate a creative prompt.";
+    return response.text || "ไม่สามารถสร้างพรอมต์เชิงสร้างสรรค์ได้.";
   } catch (error: any) {
     console.error("Error from Gemini API (generateCreativePrompt):", error);
-    throw new Error(`Failed to generate creative prompt: ${error.message || 'Unknown API error'}`);
+    throw new Error(`ไม่สามารถสร้างพรอมต์เชิงสร้างสรรค์ได้: ${error.message || 'ข้อผิดพลาด API ไม่ทราบสาเหตุ'}`);
   }
 };
