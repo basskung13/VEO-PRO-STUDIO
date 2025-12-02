@@ -3,8 +3,6 @@
 import { PromptConfig, Scene, Character, AspectRatio } from "../types";
 import { GoogleGenAI } from "@google/genai";
 
-// Removed redundant declare global block as it's now correctly defined in types.ts.
-
 // Helper to construct the text prompt optimized for Gemini Web
 export const constructVeoPrompt = (config: PromptConfig): string => {
   let baseCommand = `Create a video of ${config.prompt.trim()}`;
@@ -66,7 +64,7 @@ export interface CreativeContext {
   intensity: string; 
 }
 
-export const generateCreativePrompt = async (apiKeyFromProp: string, context: CreativeContext): Promise<string> => {
+export const generateCreativePrompt = async (context: CreativeContext): Promise<string> => {
   // Always use process.env.API_KEY for actual API calls
   if (!process.env.API_KEY) throw new Error("API Key is required. Please set it in the API Key Manager.");
 
@@ -96,7 +94,6 @@ export const generateCreativePrompt = async (apiKeyFromProp: string, context: Cr
 
 // New: Generate Storyboard from Plot with Mood Context
 export const generateStoryboardFromPlot = async (
-  apiKeyFromProp: string, 
   plot: string, 
   characters: Character[],
   moodContext?: { weather: string; atmosphere: string; lighting: string; intensity: number }
@@ -175,7 +172,6 @@ export const generateStoryboardFromPlot = async (
 
 // Generate Video using Veo 3.1
 export const generateVeoVideo = async (
-  apiKeyFromProp: string, 
   prompt: string, 
   aspectRatio: AspectRatio
 ): Promise<string> => {

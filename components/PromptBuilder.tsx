@@ -10,7 +10,7 @@ interface PromptBuilderProps {
   activeApiKey: ApiKey | null; // Keep activeApiKey for UI display purposes if needed, but not for API calls
   onOpenApiKeyManager: () => void;
   onLaunchScene: (prompt: string) => void;
-  onNavigateToCharacterStudio: () => void;
+  onNavigateToCharacterStudio: () => void; // New prop for navigation
 }
 
 const WEATHERS = ['Sunny (แดดจัด)', 'Cloudy (เมฆมาก)', 'Rainy (ฝนตก)', 'Stormy (พายุ)', 'Snowy (หิมะตก)', 'Foggy (หมอกหนา)', 'Windy (ลมแรง)'];
@@ -21,7 +21,8 @@ const PromptBuilder: React.FC<PromptBuilderProps> = ({
   characters, 
   activeApiKey, // This is now primarily for UI display, actual API calls use process.env.API_KEY
   onOpenApiKeyManager,
-  onLaunchScene
+  onLaunchScene,
+  onNavigateToCharacterStudio // Destructure new prop
 }) => {
   const [plot, setPlot] = useState('');
   const [scenes, setScenes] = useState<Scene[]>([]);
@@ -58,8 +59,8 @@ const PromptBuilder: React.FC<PromptBuilderProps> = ({
         intensity
       };
       
-      // Pass a dummy apiKey or null, as the service function now uses process.env.API_KEY
-      const newScenes = await generateStoryboardFromPlot(activeApiKey.key, plot, characters, moodContext); 
+      // Removed apiKeyFromProp argument as service function now uses process.env.API_KEY
+      const newScenes = await generateStoryboardFromPlot(plot, characters, moodContext); 
       setScenes(newScenes);
     } catch (e: any) {
       alert(e.message || "เกิดข้อผิดพลาดในการสร้างบท");
@@ -169,8 +170,8 @@ const PromptBuilder: React.FC<PromptBuilderProps> = ({
     setScenes(prev => prev.map(s => s.id === sceneId ? { ...s, generationStatus: 'generating' } : s));
 
     try {
-      // Pass a dummy apiKey or null, as the service function now uses process.env.API_KEY
-      const videoUrl = await generateVeoVideo(activeApiKey.key, prompt, aspectRatio); 
+      // Removed apiKeyFromProp argument as service function now uses process.env.API_KEY
+      const videoUrl = await generateVeoVideo(prompt, aspectRatio); 
       
       setScenes(prev => prev.map(s => s.id === sceneId ? { 
         ...s, 
@@ -303,7 +304,17 @@ const PromptBuilder: React.FC<PromptBuilderProps> = ({
         <div className="bg-slate-900 border border-slate-700 rounded-xl p-6">
            <h3 className="text-slate-400 font-bold uppercase text-xs tracking-wider mb-2">ข้อมูลตัวละคร ({characters.length})</h3>
            <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
-             {characters.length === 0 && <p className="text-slate-600 text-xs italic">ยังไม่มีตัวละคร ไปสร้างที่หน้า Character Studio</p>}
+             {characters.length === 0 && (
+                <p className="text-slate-600 text-xs italic">
+                    ยังไม่มีตัวละคร 
+                    <button 
+                      onClick={onNavigateToCharacterStudio} 
+                      className="text-emerald-400 hover:underline ml-1"
+                    >
+                        ไปสร้างที่หน้า Character Studio
+                    </button>
+                </p>
+             )}
              {characters.map(c => (
                <div key={c.id} className="text-xs bg-slate-950 p-2 rounded border border-slate-800 flex justify-between">
                  <span className="text-emerald-400 font-bold">{c.name}</span>

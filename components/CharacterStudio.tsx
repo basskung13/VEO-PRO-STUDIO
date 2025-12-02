@@ -1,4 +1,5 @@
 
+
 import React, { useState, useEffect } from 'react';
 import { Character, CharacterAttributes, CustomOption, ApiKey } from '../types';
 import { generateCharacterImage } from '../services/geminiService'; // Import the new service function
@@ -198,6 +199,7 @@ const CharacterStudio: React.FC<CharacterStudioProps> = ({ characters, onSaveCha
       const newList = currentList.includes(value) 
         ? currentList.filter(item => item !== value)
         : [...currentList, value];
+      // Correct way to update nested state:
       return { ...prev, attr: { ...prev.attr, [category]: newList } };
     });
   };

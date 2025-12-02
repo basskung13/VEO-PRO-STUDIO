@@ -1,3 +1,4 @@
+
 // components/SignupScreen.tsx
 import React, { useState } from 'react';
 import { User, Lock, UserPlus, Sparkles } from 'lucide-react';

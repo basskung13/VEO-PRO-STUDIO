@@ -1,4 +1,5 @@
 
+
 import React from 'react';
 import { X, ExternalLink, Mail, User, CheckCircle, Plus, Trash2 } from 'lucide-react';
 import { UserProfile } from '../types';
@@ -110,7 +111,7 @@ const AccountSettingsModal: React.FC<AccountSettingsModalProps> = ({
                             Associated Email
                           </label>
                           <div className="relative">
-                            <Mail size={12} className="absolute left-3 top-2.5 text-slate-600" />
+                            <Mail size={12} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-600" />
                             <input
                               type="text"
                               value={profile.email || ''}
