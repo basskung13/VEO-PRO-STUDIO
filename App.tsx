@@ -1,15 +1,14 @@
-
 import React, { useState, useEffect } from 'react';
 import AccountBar from './components/AccountBar';
 import VideoHistory from './components/VideoHistory';
-import GlobalSettingsModal from './components/GlobalSettingsModal';
+import GlobalSettings from './components/GlobalSettings';
 import PromptBuilder from './components/PromptBuilder';
 import CharacterStudio from './components/CharacterStudio';
 import LoginScreen from './components/LoginScreen';
 import SignupScreen from './components/SignupScreen';
 import { constructVeoPrompt, openGeminiWeb } from './services/geminiService';
 import { HistoryItem, AspectRatio, AccountUsage, UserProfile, ApiKey, CustomOption, Character, LoggedInUser } from './types';
-import { Sparkles, Video, User, Key, AlertTriangle, Loader2 } from 'lucide-react'; // Added Loader2
+import { Sparkles, Video, User, Settings, AlertTriangle, Loader2 } from 'lucide-react'; // Added Loader2, Settings
 
 const STYLES = [
   'Cinematic',
@@ -24,11 +23,7 @@ const STYLES = [
 
 // Default data for custom options (all modifiable character attributes)
 const DEFAULT_CUSTOM_OPTIONS_DATA: CustomOption[] = [
-  // Genders (Still static in CS as per last review, but if needed, can move here)
-  // Ages (Still static in CS)
-  // Skin Tones (Still static in CS)
-  // Face Shapes (Still static in CS)
-  // Eye Colors (Still static in CS)
+  // ... (Keeping all existing constants same as before)
   { id: 'opt-g1', value: 'Male (ชาย)', attributeKey: 'gender' },
   { id: 'opt-g2', value: 'Female (หญิง)', attributeKey: 'gender' },
   { id: 'opt-g3', value: 'Non-binary (ไม่ระบุเพศ)', attributeKey: 'gender' },
@@ -203,7 +198,7 @@ const DEFAULT_CUSTOM_OPTIONS_DATA: CustomOption[] = [
   { id: 'opt-ee9', value: 'วัดเก่า (Old Temple)', attributeKey: 'environmentElement' },
   { id: 'opt-ee10', value: 'ภูเขา (Mountain)', attributeKey: 'environmentElement' },
 
-  // Story Dialects (NEW)
+  // Story Dialects
   { id: 'opt-sd1', value: 'TH ไทยกลาง', attributeKey: 'storyDialect' },
   { id: 'opt-sd2', value: 'TH ภาษาอีสาน', attributeKey: 'storyDialect' },
   { id: 'opt-sd3', value: 'TH ภาษาเหนือ (คำเมือง)', attributeKey: 'storyDialect' },
@@ -213,7 +208,7 @@ const DEFAULT_CUSTOM_OPTIONS_DATA: CustomOption[] = [
   { id: 'opt-sd7', value: 'EN English (US)', attributeKey: 'storyDialect' },
   { id: 'opt-sd8', value: 'EN English (Old/Shakespearean)', attributeKey: 'storyDialect' },
   
-  // Story Tones (NEW)
+  // Story Tones
   { id: 'opt-st1', value: 'Serious/Dramatic (จริงจัง/ดราม่า)', attributeKey: 'storyTone' },
   { id: 'opt-st2', value: 'Comedic/Funny (ตลก/ขบขัน)', attributeKey: 'storyTone' },
   { id: 'opt-st3', value: 'Dark/Gritty (มืดมน/ดิบเถื่อน)', attributeKey: 'storyTone' },
@@ -222,7 +217,7 @@ const DEFAULT_CUSTOM_OPTIONS_DATA: CustomOption[] = [
   { id: 'opt-st6', value: 'Horror/Scary (สยองขวัญ)', attributeKey: 'storyTone' },
   { id: 'opt-st7', value: 'Action-packed (แอคชั่นมันส์ๆ)', attributeKey: 'storyTone' },
 
-  // Story Styles (NEW)
+  // Story Styles
   { id: 'opt-ss1', value: 'Cinematic Movie (ภาพยนตร์)', attributeKey: 'storyStyle' },
   { id: 'opt-ss2', value: 'TV Series (ละครทีวี)', attributeKey: 'storyStyle' },
   { id: 'opt-ss3', value: 'Documentary (สารคดี)', attributeKey: 'storyStyle' },
@@ -230,15 +225,15 @@ const DEFAULT_CUSTOM_OPTIONS_DATA: CustomOption[] = [
   { id: 'opt-ss5', value: 'Stage Play (ละครเวที)', attributeKey: 'storyStyle' },
 ];
 
-type View = 'generator' | 'characters';
+type View = 'generator' | 'characters' | 'settings'; // Added 'settings' view
 
 const App: React.FC = () => {
-  const [currentView, setCurrentView] = useState<View>('generator');
+  const [currentView, setCurrentView] = useState<View>('settings'); // Default to 'settings' (first menu item)
   
   // --- Authentication State ---
   const [loggedInUser, setLoggedInUser] = useState<LoggedInUser | null>(null);
-  const [showAuthScreen, setShowAuthScreen] = useState<'login' | 'signup' | 'none'>('none'); // Default to 'none' for loading initial check
-  const [isAuthCheckComplete, setIsAuthCheckComplete] = useState(false); // New state for auth check completion
+  const [showAuthScreen, setShowAuthScreen] = useState<'login' | 'signup' | 'none'>('none');
+  const [isAuthCheckComplete, setIsAuthCheckComplete] = useState(false);
   // ----------------------------
 
   // Account & Quota Management
@@ -247,19 +242,16 @@ const App: React.FC = () => {
   const [accountUsage, setAccountUsage] = useState<AccountUsage>({});
   const [userProfiles, setUserProfiles] = useState<Record<number, UserProfile>>({});
   
-  // New: Global settings modal state
-  const [isGlobalSettingsOpen, setIsGlobalSettingsOpen] = useState(false);
-  
-  // API Key Management - now separated for different purposes
+  // API Key Management
   const [apiKeys, setApiKeys] = useState<ApiKey[]>([]);
   const [activeStoryApiKeyId, setActiveStoryApiKeyId] = useState<string | null>(null);
   const [activeCharacterApiKeyId, setActiveCharacterApiKeyId] = useState<string | null>(null);
 
   // Characters
   const [characters, setCharacters] = useState<Character[]>([]);
-  // New: State for characters selected for storyboard
+  // State for characters selected for storyboard
   const [selectedCharactersForStoryboard, setSelectedCharactersForStoryboard] = useState<string[]>([]);
-  // New: State for max characters per scene and number of scenes
+  // State for max characters per scene and number of scenes
   const [maxCharactersPerScene, setMaxCharactersPerScene] = useState<number>(1);
   const [numberOfScenes, setNumberOfScenes] = useState<number>(3);
 
@@ -506,55 +498,61 @@ const App: React.FC = () => {
         onAccountSelect={setCurrentAccountIndex} // Still needed for display in dropdown
         onResetCurrent={resetCurrentAccount}
         onUpdateProfileName={updateProfileName}
-        onOpenSettings={() => setIsGlobalSettingsOpen(true)}
+        onOpenSettings={() => setCurrentView('settings')}
         loggedInUser={loggedInUser}
         onLogout={handleLogout}
       />
 
-      <GlobalSettingsModal
-        isOpen={isGlobalSettingsOpen}
-        onClose={() => setIsGlobalSettingsOpen(false)}
-        // Account Management Props
-        userProfiles={userProfiles}
-        onUpdateProfile={updateProfile}
-        activeSlotCount={activeSlotCount}
-        onUpdateSlotCount={setActiveSlotCount}
-        // API Key Management Props
-        apiKeys={apiKeys}
-        activeStoryApiKeyId={activeStoryApiKeyId}
-        activeCharacterApiKeyId={activeCharacterApiKeyId}
-        onAddKey={(k) => setApiKeys(prev => [...prev, k])}
-        onRemoveKey={(id) => {
-          setApiKeys(prev => prev.filter(k => k.id !== id));
-          if (activeStoryApiKeyId === id) setActiveStoryApiKeyId(null);
-          if (activeCharacterApiKeyId === id) setActiveCharacterApiKeyId(null);
-        }}
-        onSelectStoryKey={setActiveStoryApiKeyId}
-        onSelectCharacterKey={setActiveCharacterApiKeyId}
-        // Custom Options Management - REMOVED from Global Settings
-      />
-
       {/* Main Navigation */}
       <nav className="container mx-auto px-4 mt-6 flex justify-center">
-          <div className="bg-slate-900 border border-slate-800 p-1 rounded-xl flex gap-1 shadow-lg">
+          <div className="bg-slate-900 border border-slate-800 p-1 rounded-xl flex gap-1 shadow-lg overflow-x-auto">
+             {/* Global Settings (1st Menu) */}
              <button
-               onClick={() => setCurrentView('generator')}
-               className={`px-6 py-2 rounded-lg text-sm font-bold flex items-center gap-2 transition-all ${currentView === 'generator' ? 'bg-emerald-600 text-white shadow' : 'text-slate-400 hover:text-white hover:bg-slate-800'}`}
+               onClick={() => setCurrentView('settings')}
+               className={`px-6 py-2 rounded-lg text-sm font-bold flex items-center gap-2 transition-all whitespace-nowrap ${currentView === 'settings' ? 'bg-emerald-600 text-white shadow' : 'text-slate-400 hover:text-white hover:bg-slate-800'}`}
              >
-                <Video size={16} /> Storyboard Pro
+                <Settings size={16} /> Global Settings
              </button>
+             {/* Character Studio (2nd Menu) */}
              <button
                onClick={() => setCurrentView('characters')}
-               className={`px-6 py-2 rounded-lg text-sm font-bold flex items-center gap-2 transition-all ${currentView === 'characters' ? 'bg-emerald-600 text-white shadow' : 'text-slate-400 hover:text-white hover:bg-slate-800'}`}
+               className={`px-6 py-2 rounded-lg text-sm font-bold flex items-center gap-2 transition-all whitespace-nowrap ${currentView === 'characters' ? 'bg-emerald-600 text-white shadow' : 'text-slate-400 hover:text-white hover:bg-slate-800'}`}
              >
                 <User size={16} /> Character Studio
+             </button>
+             {/* Storyboard Pro (3rd Menu) */}
+             <button
+               onClick={() => setCurrentView('generator')}
+               className={`px-6 py-2 rounded-lg text-sm font-bold flex items-center gap-2 transition-all whitespace-nowrap ${currentView === 'generator' ? 'bg-emerald-600 text-white shadow' : 'text-slate-400 hover:text-white hover:bg-slate-800'}`}
+             >
+                <Video size={16} /> Storyboard Pro
              </button>
           </div>
       </nav>
 
       <main className="container mx-auto px-4 pt-6 flex flex-col items-center">
         
-        {currentView === 'characters' ? (
+        {currentView === 'settings' ? (
+          <GlobalSettings
+            // Account Management Props
+            userProfiles={userProfiles}
+            onUpdateProfile={updateProfile}
+            activeSlotCount={activeSlotCount}
+            onUpdateSlotCount={setActiveSlotCount}
+            // API Key Management Props
+            apiKeys={apiKeys}
+            activeStoryApiKeyId={activeStoryApiKeyId}
+            activeCharacterApiKeyId={activeCharacterApiKeyId}
+            onAddKey={(k) => setApiKeys(prev => [...prev, k])}
+            onRemoveKey={(id) => {
+              setApiKeys(prev => prev.filter(k => k.id !== id));
+              if (activeStoryApiKeyId === id) setActiveStoryApiKeyId(null);
+              if (activeCharacterApiKeyId === id) setActiveCharacterApiKeyId(null);
+            }}
+            onSelectStoryKey={setActiveStoryApiKeyId}
+            onSelectCharacterKey={setActiveCharacterApiKeyId}
+          />
+        ) : currentView === 'characters' ? (
              <div className="w-full max-w-6xl">
                  <CharacterStudio 
                     characters={characters}
@@ -571,7 +569,7 @@ const App: React.FC = () => {
                     onAddCustomOption={handleAddCustomOption}
                     onRemoveCustomOption={handleRemoveCustomOption}
                     activeCharacterApiKey={activeCharacterApiKeyObj}
-                    onOpenApiKeyManager={() => setIsGlobalSettingsOpen(true)}
+                    onOpenApiKeyManager={() => setCurrentView('settings')}
                  />
              </div>
         ) : (
@@ -590,14 +588,7 @@ const App: React.FC = () => {
                         <Sparkles className="text-emerald-500" />
                         Veo Storyboard Pro
                     </h2>
-
-                    <button 
-                        onClick={() => setIsGlobalSettingsOpen(true)}
-                        className={`text-xs flex items-center gap-2 px-3 py-1.5 rounded-lg border transition-all ${activeStoryApiKeyObj ? 'bg-emerald-900/20 text-emerald-400 border-emerald-500/30' : 'bg-amber-900/10 text-amber-500 border-amber-500/30 hover:bg-amber-900/20'}`}
-                    >
-                        <Key size={12} />
-                        {activeStoryApiKeyObj ? activeStoryApiKeyObj.name : 'ตั้งค่า API Key (Story)'}
-                    </button>
+                    {/* API Key button removed from here as requested */}
                 </div>
 
                 <div className="relative z-10">
@@ -605,7 +596,7 @@ const App: React.FC = () => {
                     <PromptBuilder 
                         characters={characters}
                         activeStoryApiKey={activeStoryApiKeyObj}
-                        onOpenApiKeyManager={() => setIsGlobalSettingsOpen(true)}
+                        onOpenApiKeyManager={() => setCurrentView('settings')}
                         onGenerateSceneVideo={handleGenerateSceneVideo}
                         onNavigateToCharacterStudio={() => setCurrentView('characters')}
                         selectedCharactersForStoryboard={selectedCharactersForStoryboard}
@@ -615,8 +606,8 @@ const App: React.FC = () => {
                         numberOfScenes={numberOfScenes}
                         onSetNumberOfScenes={setNumberOfScenes}
                         customOptions={customOptions}
-                        onAddCustomOption={handleAddCustomOption} // Passed props
-                        onRemoveCustomOption={handleRemoveCustomOption} // Passed props
+                        onAddCustomOption={handleAddCustomOption}
+                        onRemoveCustomOption={handleRemoveCustomOption}
                     />
                 </div>
                 </div>
