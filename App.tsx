@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import AccountBar from './components/AccountBar';
 import VideoHistory from './components/VideoHistory';
@@ -8,227 +9,32 @@ import LoginScreen from './components/LoginScreen';
 import SignupScreen from './components/SignupScreen';
 import { constructVeoPrompt, openGeminiWeb } from './services/geminiService';
 import { HistoryItem, AspectRatio, AccountUsage, UserProfile, ApiKey, CustomOption, Character, LoggedInUser } from './types';
-import { Sparkles, Video, User, Settings, AlertTriangle, Loader2 } from 'lucide-react'; // Added Loader2, Settings
+import { Sparkles, Video, User, Settings, AlertTriangle, Loader2 } from 'lucide-react';
 
 const STYLES = [
-  'Cinematic',
-  'Photorealistic',
-  'Anime',
-  'Cyberpunk',
-  '3D Render',
-  'Vintage',
-  'Noir',
-  'Watercolor'
+  'Cinematic', 'Photorealistic', 'Anime', 'Cyberpunk', '3D Render', 'Vintage', 'Noir', 'Watercolor'
 ];
 
-// Default data for custom options (all modifiable character attributes)
+// Default data for custom options
 const DEFAULT_CUSTOM_OPTIONS_DATA: CustomOption[] = [
-  // ... (Keeping all existing constants same as before)
+  { id: 'opt-sp1', value: 'Human (มนุษย์)', attributeKey: 'species' },
+  { id: 'opt-sp2', value: 'Elf (เอลฟ์)', attributeKey: 'species' },
+  { id: 'opt-sp3', value: 'Robot/Android (หุ่นยนต์)', attributeKey: 'species' },
+  { id: 'opt-sp4', value: 'Cat (แมว)', attributeKey: 'species' },
+  { id: 'opt-sp5', value: 'Dog (สุนัข)', attributeKey: 'species' },
+  { id: 'opt-sp6', value: 'Alien (เอเลี่ยน)', attributeKey: 'species' },
   { id: 'opt-g1', value: 'Male (ชาย)', attributeKey: 'gender' },
   { id: 'opt-g2', value: 'Female (หญิง)', attributeKey: 'gender' },
-  { id: 'opt-g3', value: 'Non-binary (ไม่ระบุเพศ)', attributeKey: 'gender' },
-  { id: 'opt-g4', value: 'Robot/Android (หุ่นยนต์)', attributeKey: 'gender' },
-  { id: 'opt-g5', value: 'Monster (สัตว์ประหลาด)', attributeKey: 'gender' },
-
-  { id: 'opt-a1', value: 'Infant (ทารก 0-2)', attributeKey: 'ageGroup' },
-  { id: 'opt-a2', value: 'Child (เด็ก 3-12)', attributeKey: 'ageGroup' },
-  { id: 'opt-a3', value: 'Teenager (วัยรุ่น 13-19)', attributeKey: 'ageGroup' },
-  { id: 'opt-a4', value: 'Young Adult (วัยหนุ่มสาว 20-35)', attributeKey: 'ageGroup' },
-  { id: 'opt-a5', value: 'Middle Aged (วัยกลางคน 36-55)', attributeKey: 'ageGroup' },
-  { id: 'opt-a6', value: 'Elderly (ผู้สูงอายุ 60+)', attributeKey: 'ageGroup' },
-
-  { id: 'opt-sk1', value: 'Pale (ขาวซีด)', attributeKey: 'skinTone' },
-  { id: 'opt-sk2', value: 'Fair (ขาวอมชมพู)', attributeKey: 'skinTone' },
-  { id: 'opt-sk3', value: 'Light (ขาวเหลือง)', attributeKey: 'skinTone' },
-  { id: 'opt-sk4', value: 'Tan (ผิวแทน)', attributeKey: 'skinTone' },
-  { id: 'opt-sk5', value: 'Olive (ผิวสองสี)', attributeKey: 'skinTone' },
-  { id: 'opt-sk6', value: 'Brown (ผิวคล้ำ)', attributeKey: 'skinTone' },
-  { id: 'opt-sk7', value: 'Dark (ผิวดำเข้ม)', attributeKey: 'skinTone' },
-  { id: 'opt-sk8', value: 'Blue (น้ำเงิน/เอเลี่ยน)', attributeKey: 'skinTone' },
-  { id: 'opt-sk9', value: 'Green (เขียว/ออร์ค)', attributeKey: 'skinTone' },
-  { id: 'opt-sk10', value: 'Metallic (โลหะ/หุ่นยนต์)', attributeKey: 'skinTone' },
-
-  { id: 'opt-fs1', value: 'Oval (รูปไข่)', attributeKey: 'faceShape' },
-  { id: 'opt-fs2', value: 'Round (หน้ากลม)', attributeKey: 'faceShape' },
-  { id: 'opt-fs3', value: 'Square (หน้าเหลี่ยม)', attributeKey: 'faceShape' },
-  { id: 'opt-fs4', value: 'Diamond (หน้ารูปเพชร)', attributeKey: 'faceShape' },
-  { id: 'opt-fs5', value: 'Chiseled (กรามชัด)', attributeKey: 'faceShape' },
-  { id: 'opt-fs6', value: 'Gaunt (แก้มตอบ)', attributeKey: 'faceShape' },
-  { id: 'opt-fs7', value: 'Scarred (มีแผลเป็น)', attributeKey: 'faceShape' },
-
-  { id: 'opt-eyec1', value: 'Brown (น้ำตาล)', attributeKey: 'eyeColor' },
-  { id: 'opt-eyec2', value: 'Blue (ฟ้า)', attributeKey: 'eyeColor' },
-  { id: 'opt-eyec3', value: 'Green (เขียว)', attributeKey: 'eyeColor' },
-  { id: 'opt-eyec4', value: 'Hazel (น้ำตาลอ่อน)', attributeKey: 'eyeColor' },
-  { id: 'opt-eyec5', value: 'Grey (เทา)', attributeKey: 'eyeColor' },
-  { id: 'opt-eyec6', value: 'Black (ดำ)', attributeKey: 'eyeColor' },
-  { id: 'opt-eyec7', value: 'Red (แดง)', attributeKey: 'eyeColor' },
-  { id: 'opt-eyec8', value: 'Purple (ม่วง)', attributeKey: 'eyeColor' },
-  { id: 'opt-eyec9', value: 'Glowing (เรืองแสง)', attributeKey: 'eyeColor' },
-  { id: 'opt-eyec10', value: 'Heterochromia (ตาสองสี)', attributeKey: 'eyeColor' },
-
-  // Hair Styles
-  { id: 'opt-hs1', value: 'Short / Side Part (สั้น/แสกข้าง)', attributeKey: 'hairStyle' },
-  { id: 'opt-hs2', value: 'Long / Straight (ยาว/ตรง)', attributeKey: 'hairStyle' },
-  { id: 'opt-hs3', value: 'Curly (หยิก)', attributeKey: 'hairStyle' },
-  { id: 'opt-hs4', value: 'Wavy (หยักศก)', attributeKey: 'hairStyle' },
-  { id: 'opt-hs5', value: 'Braids (เปีย)', attributeKey: 'hairStyle' },
-  { id: 'opt-hs6', value: 'Bald (ศีรษะล้าน)', attributeKey: 'hairStyle' },
-  { id: 'opt-hs7', value: 'Spiky (ตั้งชี้)', attributeKey: 'hairStyle' },
-  { id: 'opt-hs8', value: 'Ponytail (หางม้า)', attributeKey: 'hairStyle' },
-  { id: 'opt-hs9', value: 'Bun (มวยผม)', attributeKey: 'hairStyle' },
-  // Hair Colors
-  { id: 'opt-hc1', value: 'Black (ดำ)', attributeKey: 'hairColor' },
-  { id: 'opt-hc2', value: 'Brown (น้ำตาล)', attributeKey: 'hairColor' },
-  { id: 'opt-hc3', value: 'Blonde (บลอนด์)', attributeKey: 'hairColor' },
-  { id: 'opt-hc4', value: 'Red (แดง)', attributeKey: 'hairColor' },
-  { id: 'opt-hc5', value: 'White (ขาว)', attributeKey: 'hairColor' },
-  { id: 'opt-hc6', value: 'Grey (เทา)', attributeKey: 'hairColor' },
-  { id: 'opt-hc7', value: 'Blue (ฟ้า)', attributeKey: 'hairColor' },
-  { id: 'opt-hc8', value: 'Green (เขียว)', attributeKey: 'hairColor' },
-  { id: 'opt-hc9', value: 'Pink (ชมพู)', attributeKey: 'hairColor' },
-  { id: 'opt-hc10', value: 'Purple (ม่วง)', attributeKey: 'hairColor' },
-  // Hair Textures
-  { id: 'opt-ht1', value: 'Straight (ตรง)', attributeKey: 'hairTexture' },
-  { id: 'opt-ht2', value: 'Wavy (หยักศก)', attributeKey: 'hairTexture' },
-  { id: 'opt-ht3', value: 'Curly (หยิก)', attributeKey: 'hairTexture' },
-  { id: 'opt-ht4', value: 'Coily (ขด)', attributeKey: 'hairTexture' },
-  { id: 'opt-ht5', value: 'Afro (ฟู)', attributeKey: 'hairTexture' },
-  // Eye Shapes
-  { id: 'opt-es1', value: 'Almond (อัลมอนด์)', attributeKey: 'eyeShape' },
-  { id: 'opt-es2', value: 'Round (กลม)', attributeKey: 'eyeShape' },
-  { id: 'opt-es3', value: 'Slanted (ตาเฉียง)', attributeKey: 'eyeShape' },
-  { id: 'opt-es4', value: 'Downturned (ตาตก)', attributeKey: 'eyeShape' },
-  { id: 'opt-es5', value: 'Upturned (ตาเชิด)', attributeKey: 'eyeShape' },
-  { id: 'opt-es6', value: 'Hooded (ตาชั้นเดียว)', attributeKey: 'eyeShape' },
-  // Facial Features
-  { id: 'opt-ff1', value: 'Scars (แผลเป็น)', attributeKey: 'facialFeatures' },
-  { id: 'opt-ff2', value: 'Freckles (กระ)', attributeKey: 'facialFeatures' },
-  { id: 'opt-ff3', value: 'Moles (ไฝ)', attributeKey: 'facialFeatures' },
-  { id: 'opt-ff4', value: 'Tattoos (รอยสัก)', attributeKey: 'facialFeatures' },
-  { id: 'opt-ff5', value: 'Beard (เครา)', attributeKey: 'facialFeatures' },
-  { id: 'opt-ff6', value: 'Mustache (หนวด)', attributeKey: 'facialFeatures' },
-  { id: 'opt-ff7', value: 'Glasses (แว่นตา)', attributeKey: 'facialFeatures' },
-  { id: 'opt-ff8', value: 'Cyborg Implants (อวัยวะไซบอร์ก)', attributeKey: 'facialFeatures' },
-  // Body Types
-  { id: 'opt-bt1', value: 'Average (ทั่วไป)', attributeKey: 'bodyType' },
-  { id: 'opt-bt2', value: 'Athletic (นักกีฬา)', attributeKey: 'bodyType' },
-  { id: 'opt-bt3', value: 'Muscular (กล้ามเนื้อ)', attributeKey: 'bodyType' },
-  { id: 'opt-bt4', value: 'Slim (ผอมเพรียว)', attributeKey: 'bodyType' },
-  { id: 'opt-bt5', value: 'Chubby (ท้วม)', attributeKey: 'bodyType' },
-  { id: 'opt-bt6', value: 'Elderly (สูงวัย)', attributeKey: 'bodyType' },
-  { id: 'opt-bt7', value: 'Robotic (หุ่นยนต์)', attributeKey: 'bodyType' },
-  { id: 'opt-bt8', value: 'Large (ใหญ่โต)', attributeKey: 'bodyType' },
-  // Clothing Styles
-  { id: 'opt-cs1', value: 'Casual (ลำลอง)', attributeKey: 'clothingStyle' },
-  { id: 'opt-cs2', value: 'Formal (เป็นทางการ)', attributeKey: 'clothingStyle' },
-  { id: 'opt-cs3', value: 'Sporty (สปอร์ต)', attributeKey: 'clothingStyle' },
-  { id: 'opt-cs4', value: 'Fantasy (แฟนตาซี)', attributeKey: 'clothingStyle' },
-  { id: 'opt-cs5', value: 'Sci-Fi (ไซไฟ)', attributeKey: 'clothingStyle' },
-  { id: 'opt-cs6', value: 'Punk (พังค์)', attributeKey: 'clothingStyle' },
-  { id: 'opt-cs7', value: 'Vintage (ย้อนยุค)', attributeKey: 'clothingStyle' },
-  { id: 'opt-cs8', value: 'Military (ทหาร)', attributeKey: 'clothingStyle' },
-  { id: 'opt-cs9', value: 'Traditional (พื้นเมือง)', attributeKey: 'clothingStyle' },
-  // Clothing Colors
-  { id: 'opt-cc1', value: 'Red (แดง)', attributeKey: 'clothingColor' },
-  { id: 'opt-cc2', value: 'Blue (น้ำเงิน)', attributeKey: 'clothingColor' },
-  { id: 'opt-cc3', value: 'Green (เขียว)', attributeKey: 'clothingColor' },
-  { id: 'opt-cc4', value: 'Yellow (เหลือง)', attributeKey: 'clothingColor' },
-  { id: 'opt-cc5', value: 'Black (ดำ)', attributeKey: 'clothingColor' },
-  { id: 'opt-cc6', value: 'White (ขาว)', attributeKey: 'clothingColor' },
-  { id: 'opt-cc7', value: 'Grey (เทา)', attributeKey: 'clothingColor' },
-  { id: 'opt-cc8', value: 'Purple (ม่วง)', attributeKey: 'clothingColor' },
-  { id: 'opt-cc9', value: 'Brown (น้ำตาล)', attributeKey: 'clothingColor' },
-  { id: 'opt-cc10', value: 'Orange (ส้ม)', attributeKey: 'clothingColor' },
-  // Clothing Details
-  { id: 'opt-cd1', value: 'Dragon Pattern (ลายมังกร)', attributeKey: 'clothingDetail' },
-  { id: 'opt-cd2', value: 'Torn Fabric (ผ้าขาด)', attributeKey: 'clothingDetail' },
-  { id: 'opt-cd3', value: 'Glowing Seams (ตะเข็บเรืองแสง)', attributeKey: 'clothingDetail' },
-  { id: 'opt-cd4', value: 'Embroidered (ปัก)', attributeKey: 'clothingDetail' },
-  { id: 'opt-cd5', value: 'Leather Straps (สายหนัง)', attributeKey: 'clothingDetail' },
-  { id: 'opt-cd6', value: 'Metal Studs (หมุดโลหะ)', attributeKey: 'clothingDetail' },
-  // Accessories
-  { id: 'opt-ac1', value: 'Necklace (สร้อยคอ)', attributeKey: 'accessories' },
-  { id: 'opt-ac2', value: 'Earrings (ต่างหู)', attributeKey: 'accessories' },
-  { id: 'opt-ac3', value: 'Hat (หมวก)', attributeKey: 'accessories' },
-  { id: 'opt-ac4', value: 'Gloves (ถุงมือ)', attributeKey: 'accessories' },
-  { id: 'opt-ac5', value: 'Scarf (ผ้าพันคอ)', attributeKey: 'accessories' },
-  { id: 'opt-ac6', value: 'Backpack (เป้)', attributeKey: 'accessories' },
-  { id: 'opt-ac7', value: 'Belt (เข็มขัด)', attributeKey: 'accessories' },
-  { id: 'opt-ac8', value: 'Wristwatch (นาฬิกาข้อมือ)', attributeKey: 'accessories' },
-  { id: 'opt-ac9', value: 'Cape (ผ้าคลุม)', attributeKey: 'accessories' },
-  // Weapons
-  { id: 'opt-w1', value: 'Sword (ดาบ)', attributeKey: 'weapons' },
-  { id: 'opt-w2', value: 'Gun (ปืน)', attributeKey: 'weapons' },
-  { id: 'opt-w3', value: 'Bow (ธนู)', attributeKey: 'weapons' },
-  { id: 'opt-w4', value: 'Magic Wand (ไม้กายสิทธิ์)', attributeKey: 'weapons' },
-  { id: 'opt-w5', value: 'Knife (มีด)', attributeKey: 'weapons' },
-  { id: 'opt-w6', value: 'Axe (ขวาน)', attributeKey: 'weapons' },
-  { id: 'opt-w7', value: 'Shield (โล่)', attributeKey: 'weapons' },
-  { id: 'opt-w8', value: 'Staff (ไม้เท้า)', attributeKey: 'weapons' },
-  // Personalities
-  { id: 'opt-p1', value: 'Brave (กล้าหาญ)', attributeKey: 'personality' },
-  { id: 'opt-p2', value: 'Calm (สงบ)', attributeKey: 'personality' },
-  { id: 'opt-p3', value: 'Outgoing (ร่าเริง)', attributeKey: 'personality' },
-  { id: 'opt-p4', value: 'Shy (ขี้อาย)', attributeKey: 'personality' },
-  { id: 'opt-p5', value: 'Intelligent (ฉลาด)', attributeKey: 'personality' },
-  { id: 'opt-p6', value: 'Mysterious (ลึกลับ)', attributeKey: 'personality' },
-  { id: 'opt-p7', value: 'Aggressive (ดุดัน)', attributeKey: 'personality' },
-  { id: 'opt-p8', value: 'Kind (ใจดี)', attributeKey: 'personality' },
-  { id: 'opt-p9', value: 'Sarcastic (ประชดประชัน)', attributeKey: 'personality' },
-  // Moods
-  { id: 'opt-m1', value: 'Neutral (ปกติ)', attributeKey: 'currentMood' },
-  { id: 'opt-m2', value: 'Happy (มีความสุข)', attributeKey: 'currentMood' },
-  { id: 'opt-m3', value: 'Sad (เศร้า)', attributeKey: 'currentMood' },
-  { id: 'opt-m4', value: 'Angry (โกรธ)', attributeKey: 'currentMood' },
-  { id: 'opt-m5', value: 'Surprised (ประหลาดใจ)', attributeKey: 'currentMood' },
-  { id: 'opt-m6', value: 'Scared (กลัว)', attributeKey: 'currentMood' },
-  { id: 'opt-m7', value: 'Confused (สับสน)', attributeKey: 'currentMood' },
-  { id: 'opt-m8', value: 'Excited (ตื่นเต้น)', attributeKey: 'currentMood' },
-  { id: 'opt-m9', value: 'Determined (มุ่งมั่น)', attributeKey: 'currentMood' },
-  // Environment Elements
-  { id: 'opt-ee1', value: 'ไก่ (Chicken)', attributeKey: 'environmentElement' },
-  { id: 'opt-ee2', value: 'ช้าง (Elephant)', attributeKey: 'environmentElement' },
-  { id: 'opt-ee3', value: 'ม้า (Horse)', attributeKey: 'environmentElement' },
-  { id: 'opt-ee4', value: 'วัว (Cow)', attributeKey: 'environmentElement' },
-  { id: 'opt-ee5', value: 'ควาย (Buffalo)', attributeKey: 'environmentElement' },
-  { id: 'opt-ee6', value: 'ชาวบ้านจำนวนมาก (Many Villagers)', attributeKey: 'environmentElement' },
-  { id: 'opt-ee7', value: 'แม่ค้า (Vendor)', attributeKey: 'environmentElement' },
-  { id: 'opt-ee8', value: 'ตลาดสด (Fresh Market)', attributeKey: 'environmentElement' },
-  { id: 'opt-ee9', value: 'วัดเก่า (Old Temple)', attributeKey: 'environmentElement' },
-  { id: 'opt-ee10', value: 'ภูเขา (Mountain)', attributeKey: 'environmentElement' },
-
-  // Story Dialects
-  { id: 'opt-sd1', value: 'TH ไทยกลาง', attributeKey: 'storyDialect' },
-  { id: 'opt-sd2', value: 'TH ภาษาอีสาน', attributeKey: 'storyDialect' },
-  { id: 'opt-sd3', value: 'TH ภาษาเหนือ (คำเมือง)', attributeKey: 'storyDialect' },
-  { id: 'opt-sd4', value: 'TH ภาษาใต้', attributeKey: 'storyDialect' },
-  { id: 'opt-sd5', value: 'TH ราชาศัพท์', attributeKey: 'storyDialect' },
-  { id: 'opt-sd6', value: 'TH ไทยโบราณ', attributeKey: 'storyDialect' },
-  { id: 'opt-sd7', value: 'EN English (US)', attributeKey: 'storyDialect' },
-  { id: 'opt-sd8', value: 'EN English (Old/Shakespearean)', attributeKey: 'storyDialect' },
-  
-  // Story Tones
-  { id: 'opt-st1', value: 'Serious/Dramatic (จริงจัง/ดราม่า)', attributeKey: 'storyTone' },
-  { id: 'opt-st2', value: 'Comedic/Funny (ตลก/ขบขัน)', attributeKey: 'storyTone' },
-  { id: 'opt-st3', value: 'Dark/Gritty (มืดมน/ดิบเถื่อน)', attributeKey: 'storyTone' },
-  { id: 'opt-st4', value: 'Whimsical/Fantasy (แฟนตาซี/เพ้อฝัน)', attributeKey: 'storyTone' },
-  { id: 'opt-st5', value: 'Romantic (โรแมนติก)', attributeKey: 'storyTone' },
-  { id: 'opt-st6', value: 'Horror/Scary (สยองขวัญ)', attributeKey: 'storyTone' },
-  { id: 'opt-st7', value: 'Action-packed (แอคชั่นมันส์ๆ)', attributeKey: 'storyTone' },
-
-  // Story Styles
-  { id: 'opt-ss1', value: 'Cinematic Movie (ภาพยนตร์)', attributeKey: 'storyStyle' },
-  { id: 'opt-ss2', value: 'TV Series (ละครทีวี)', attributeKey: 'storyStyle' },
-  { id: 'opt-ss3', value: 'Documentary (สารคดี)', attributeKey: 'storyStyle' },
-  { id: 'opt-ss4', value: 'Anime/Animation (อนิเมะ)', attributeKey: 'storyStyle' },
-  { id: 'opt-ss5', value: 'Stage Play (ละครเวที)', attributeKey: 'storyStyle' },
+  { id: 'opt-cat1', value: 'Sci-Fi', attributeKey: 'storyCategory' },
+  { id: 'opt-cat2', value: 'Fantasy', attributeKey: 'storyCategory' },
+  { id: 'opt-det1', value: 'Cyberpunk Dystopia', attributeKey: 'storyDetail' },
+  { id: 'opt-det2', value: 'High Fantasy World', attributeKey: 'storyDetail' }
 ];
 
-type View = 'generator' | 'characters' | 'settings'; // Added 'settings' view
+type View = 'generator' | 'characters' | 'settings';
 
 const App: React.FC = () => {
-  const [currentView, setCurrentView] = useState<View>('settings'); // Default to 'settings' (first menu item)
+  const [currentView, setCurrentView] = useState<View>('settings'); // Default to settings
   
   // --- Authentication State ---
   const [loggedInUser, setLoggedInUser] = useState<LoggedInUser | null>(null);
@@ -247,22 +53,16 @@ const App: React.FC = () => {
   const [activeStoryApiKeyId, setActiveStoryApiKeyId] = useState<string | null>(null);
   const [activeCharacterApiKeyId, setActiveCharacterApiKeyId] = useState<string | null>(null);
 
-  // Characters
+  // Characters & Storyboard
   const [characters, setCharacters] = useState<Character[]>([]);
-  // State for characters selected for storyboard
   const [selectedCharactersForStoryboard, setSelectedCharactersForStoryboard] = useState<string[]>([]);
-  // State for max characters per scene and number of scenes
   const [maxCharactersPerScene, setMaxCharactersPerScene] = useState<number>(1);
   const [numberOfScenes, setNumberOfScenes] = useState<number>(3);
 
-
-  // Custom Options
   const [customOptions, setCustomOptions] = useState<CustomOption[]>([]);
-  
-  const MAX_DAILY_COUNT = 2; // User requested limit: 2 videos per account per day
+  const MAX_DAILY_COUNT = 2; 
 
   const [history, setHistory] = useState<HistoryItem[]>([]);
-  const [lastCopied, setLastCopied] = useState<boolean>(false);
 
   // Load data from localStorage
   useEffect(() => {
@@ -291,44 +91,36 @@ const App: React.FC = () => {
       if (savedMaxCharsPerScene) setMaxCharactersPerScene(parseInt(savedMaxCharsPerScene, 10));
       if (savedNumScenes) setNumberOfScenes(parseInt(savedNumScenes, 10));
 
-
-      // NEW: Robustly load custom options
       if (savedCustomOptions) {
         try {
           const parsedOptions = JSON.parse(savedCustomOptions);
-          if (Array.isArray(parsedOptions) && parsedOptions.length > 0) {
-            setCustomOptions(parsedOptions);
-          } else {
-            setCustomOptions(DEFAULT_CUSTOM_OPTIONS_DATA); // If parsed to empty array, use defaults
-          }
-        } catch (parseError) {
-          console.error("Failed to parse saved custom options, using defaults.", parseError);
-          setCustomOptions(DEFAULT_CUSTOM_OPTIONS_DATA); // If parsing error, use defaults
+          // If loaded options are empty array, fallback to default. Otherwise use loaded.
+          setCustomOptions(Array.isArray(parsedOptions) && parsedOptions.length > 0 ? parsedOptions : DEFAULT_CUSTOM_OPTIONS_DATA);
+        } catch {
+          setCustomOptions(DEFAULT_CUSTOM_OPTIONS_DATA);
         }
       } else {
-        setCustomOptions(DEFAULT_CUSTOM_OPTIONS_DATA); // Initialize with defaults if not found
+        setCustomOptions(DEFAULT_CUSTOM_OPTIONS_DATA);
       }
 
-      // New: Initialize loggedInUser and auth screen state
       if (savedLoggedInUser) {
         setLoggedInUser(JSON.parse(savedLoggedInUser));
-        setShowAuthScreen('none'); // User is already logged in
+        setShowAuthScreen('none');
       } else {
-        setShowAuthScreen('login'); // Show login screen if not logged in
+        setShowAuthScreen('login');
       }
 
     } catch (e) {
       console.error("Failed to load settings", e);
-      // If any error, reset auth state to login
       setLoggedInUser(null);
       setShowAuthScreen('login');
-      setCustomOptions(DEFAULT_CUSTOM_OPTIONS_DATA); // Also reset custom options if error
+      setCustomOptions(DEFAULT_CUSTOM_OPTIONS_DATA);
     } finally {
-      setIsAuthCheckComplete(true); // Mark auth check as complete
+      setIsAuthCheckComplete(true);
     }
   }, []);
 
-  // Save data to localStorage
+  // Save data effects ... (omitted for brevity, same as before)
   useEffect(() => { localStorage.setItem('veo_account_usage', JSON.stringify(accountUsage)); }, [accountUsage]);
   useEffect(() => { localStorage.setItem('veo_user_profiles', JSON.stringify(userProfiles)); }, [userProfiles]);
   useEffect(() => { localStorage.setItem('veo_active_slot_count', activeSlotCount.toString()); }, [activeSlotCount]);
@@ -340,15 +132,7 @@ const App: React.FC = () => {
   useEffect(() => { localStorage.setItem('veo_selected_story_chars', JSON.stringify(selectedCharactersForStoryboard)); }, [selectedCharactersForStoryboard]);
   useEffect(() => { localStorage.setItem('veo_max_chars_per_scene', maxCharactersPerScene.toString()); }, [maxCharactersPerScene]);
   useEffect(() => { localStorage.setItem('veo_num_scenes', numberOfScenes.toString()); }, [numberOfScenes]);
-  
-  // New: Save loggedInUser to localStorage
-  useEffect(() => {
-    if (loggedInUser) {
-      localStorage.setItem('veo_logged_in_user', JSON.stringify(loggedInUser));
-    } else {
-      localStorage.removeItem('veo_logged_in_user');
-    }
-  }, [loggedInUser]);
+  useEffect(() => { if (loggedInUser) localStorage.setItem('veo_logged_in_user', JSON.stringify(loggedInUser)); else localStorage.removeItem('veo_logged_in_user'); }, [loggedInUser]);
 
   const addToHistory = (original: string, final: string) => {
      const newItem: HistoryItem = {
@@ -361,36 +145,15 @@ const App: React.FC = () => {
     setHistory(prev => [newItem, ...prev]);
   };
 
-  const handleCopyOnly = (text: string) => {
-    navigator.clipboard.writeText(text);
-  };
+  const handleCopyOnly = (text: string) => navigator.clipboard.writeText(text);
 
-  const resetCurrentAccount = () => {
-      setAccountUsage(prev => ({ ...prev, [currentAccountIndex]: 0 }));
-  };
+  const resetCurrentAccount = () => setAccountUsage(prev => ({ ...prev, [currentAccountIndex]: 0 }));
+  const updateProfile = (index: number, data: Partial<UserProfile>) => setUserProfiles(prev => ({ ...prev, [index]: { ...(prev[index] || { name: `Account ${index + 1}` }), ...data } }));
+  const updateProfileName = (index: number, name: string) => updateProfile(index, { name });
+  const handleAddCustomOption = (option: CustomOption) => setCustomOptions(prev => [...prev, option]);
+  const handleRemoveCustomOption = (id: string) => setCustomOptions(prev => prev.filter(opt => opt.id !== id));
 
-  const updateProfile = (index: number, data: Partial<UserProfile>) => {
-    setUserProfiles(prev => ({
-      ...prev,
-      [index]: { ...(prev[index] || { name: `Account ${index + 1}` }), ...data }
-    }));
-  };
-
-  const updateProfileName = (index: number, name: string) => {
-    updateProfile(index, { name });
-  };
-
-  const handleAddCustomOption = (option: CustomOption) => {
-    setCustomOptions(prev => [...prev, option]);
-  };
-
-  const handleRemoveCustomOption = (id: string) => {
-    setCustomOptions(prev => prev.filter(opt => opt.id !== id));
-  };
-
-  // NEW: Automatic account selection and launch
   const handleGenerateSceneVideo = (prompt: string) => {
-    // Find the next available account
     let nextAccountIndex = -1;
     for (let i = 0; i < activeSlotCount; i++) {
       if ((accountUsage[i] || 0) < MAX_DAILY_COUNT) {
@@ -398,95 +161,28 @@ const App: React.FC = () => {
         break;
       }
     }
-
     if (nextAccountIndex !== -1) {
-      // Set the found account as current
       setCurrentAccountIndex(nextAccountIndex);
-      // Increment usage count for the selected account
-      setAccountUsage(prev => ({
-        ...prev,
-        [nextAccountIndex]: (prev[nextAccountIndex] || 0) + 1,
-      }));
-
-      // Construct the prompt config and open Gemini Web
-      const config = {
-        prompt: prompt,
-        aspectRatio: '16:9' as AspectRatio, // Default aspect ratio, can be refined if needed
-      };
+      setAccountUsage(prev => ({ ...prev, [nextAccountIndex]: (prev[nextAccountIndex] || 0) + 1 }));
+      const config = { prompt: prompt, aspectRatio: '16:9' as AspectRatio };
       const finalPrompt = constructVeoPrompt(config);
-      openGeminiWeb(nextAccountIndex); // Open Gemini Web in the correct account context
-      addToHistory(prompt, finalPrompt); // Add to history
+      openGeminiWeb(nextAccountIndex); 
+      addToHistory(prompt, finalPrompt);
     } else {
-      // All accounts are at their limit
       alert("โควต้าการสร้างวิดีโอของทุกบัญชีเต็มแล้วสำหรับวันนี้ กรุณารอวันพรุ่งนี้หรือเคลียร์โควต้าบัญชี");
     }
   };
 
-  // Resolved API key objects for passing to components
   const activeStoryApiKeyObj = apiKeys.find(k => k.id === activeStoryApiKeyId) || null;
   const activeCharacterApiKeyObj = apiKeys.find(k => k.id === activeCharacterApiKeyId) || null;
   
-  const currentUsage = accountUsage[currentAccountIndex] || 0;
-  const isLimitReached = currentUsage >= MAX_DAILY_COUNT;
+  const handleLogin = (username: string, password: string) => { if (username && password) { setLoggedInUser({ username }); setShowAuthScreen('none'); } else { alert("กรุณาใส่ชื่อผู้ใช้และรหัสผ่าน"); } };
+  const handleSignup = (username: string, password: string) => { if (username && password) { setLoggedInUser({ username }); setShowAuthScreen('none'); } else { alert("กรุณาใส่ชื่อผู้ใช้และรหัสผ่าน"); } };
+  const handleLogout = () => { setLoggedInUser(null); setShowAuthScreen('login'); };
 
-  // --- Auth Handlers (Client-side simulation) ---
-  const handleLogin = (username: string, password: string) => {
-    // In a real app, this would call a backend API to authenticate
-    if (username && password) { // Simple validation
-      setLoggedInUser({ username });
-      setShowAuthScreen('none');
-      console.log(`User '${username}' logged in (simulated)`);
-    } else {
-      alert("กรุณาใส่ชื่อผู้ใช้และรหัสผ่าน");
-    }
-  };
+  if (!isAuthCheckComplete) return <div className="min-h-screen bg-slate-950 flex items-center justify-center font-sans"><Loader2 size={48} className="animate-spin mb-4" /></div>;
+  if (!loggedInUser) return <div className="min-h-screen bg-slate-950 flex items-center justify-center font-sans">{showAuthScreen === 'login' ? <LoginScreen onLogin={handleLogin} onSwitchToSignup={() => setShowAuthScreen('signup')} /> : <SignupScreen onSignup={handleSignup} onSwitchToLogin={() => setShowAuthScreen('login')} />}</div>;
 
-  const handleSignup = (username: string, password: string) => {
-    // In a real app, this would call a backend API to create a user
-    if (username && password) { // Simple validation
-      setLoggedInUser({ username }); // Automatically log in after signup for demo
-      setShowAuthScreen('none');
-      console.log(`User '${username}' signed up and logged in (simulated)`);
-      alert("สมัครสมาชิกเรียบร้อย! เข้าสู่ระบบแล้ว");
-    } else {
-      alert("กรุณาใส่ชื่อผู้ใช้และรหัสผ่าน");
-    }
-  };
-
-  const handleLogout = () => {
-    setLoggedInUser(null);
-    setShowAuthScreen('login');
-    console.log("User logged out (simulated)");
-  };
-  // ------------------------------------------------
-
-  // If auth check is not complete, show a loading screen
-  if (!isAuthCheckComplete) {
-    return (
-      <div className="min-h-screen bg-slate-950 flex items-center justify-center font-sans">
-        <div className="flex flex-col items-center text-slate-400">
-          <Loader2 size={48} className="animate-spin mb-4" />
-          <p className="text-lg">กำลังโหลด...</p>
-        </div>
-      </div>
-    );
-  }
-
-  // If not logged in, show auth screens
-  if (!loggedInUser) {
-    return (
-      <div className="min-h-screen bg-slate-950 flex items-center justify-center font-sans">
-        {showAuthScreen === 'login' && (
-          <LoginScreen onLogin={handleLogin} onSwitchToSignup={() => setShowAuthScreen('signup')} />
-        )}
-        {showAuthScreen === 'signup' && (
-          <SignupScreen onSignup={handleSignup} onSwitchToLogin={() => setShowAuthScreen('login')} />
-        )}
-      </div>
-    );
-  }
-
-  // If logged in, show the main application content
   return (
     <div className="min-h-screen bg-slate-950 pb-20 font-sans">
       <AccountBar 
@@ -495,7 +191,7 @@ const App: React.FC = () => {
         usageMap={accountUsage}
         userProfiles={userProfiles}
         maxCount={MAX_DAILY_COUNT}
-        onAccountSelect={setCurrentAccountIndex} // Still needed for display in dropdown
+        onAccountSelect={setCurrentAccountIndex} 
         onResetCurrent={resetCurrentAccount}
         onUpdateProfileName={updateProfileName}
         onOpenSettings={() => setCurrentView('settings')}
@@ -506,40 +202,25 @@ const App: React.FC = () => {
       {/* Main Navigation */}
       <nav className="container mx-auto px-4 mt-6 flex justify-center">
           <div className="bg-slate-900 border border-slate-800 p-1 rounded-xl flex gap-1 shadow-lg overflow-x-auto">
-             {/* Global Settings (1st Menu) */}
-             <button
-               onClick={() => setCurrentView('settings')}
-               className={`px-6 py-2 rounded-lg text-sm font-bold flex items-center gap-2 transition-all whitespace-nowrap ${currentView === 'settings' ? 'bg-emerald-600 text-white shadow' : 'text-slate-400 hover:text-white hover:bg-slate-800'}`}
-             >
+             <button onClick={() => setCurrentView('settings')} className={`px-6 py-2 rounded-lg text-sm font-bold flex items-center gap-2 transition-all whitespace-nowrap ${currentView === 'settings' ? 'bg-emerald-600 text-white shadow' : 'text-slate-400 hover:text-white hover:bg-slate-800'}`}>
                 <Settings size={16} /> Global Settings
              </button>
-             {/* Character Studio (2nd Menu) */}
-             <button
-               onClick={() => setCurrentView('characters')}
-               className={`px-6 py-2 rounded-lg text-sm font-bold flex items-center gap-2 transition-all whitespace-nowrap ${currentView === 'characters' ? 'bg-emerald-600 text-white shadow' : 'text-slate-400 hover:text-white hover:bg-slate-800'}`}
-             >
+             <button onClick={() => setCurrentView('characters')} className={`px-6 py-2 rounded-lg text-sm font-bold flex items-center gap-2 transition-all whitespace-nowrap ${currentView === 'characters' ? 'bg-emerald-600 text-white shadow' : 'text-slate-400 hover:text-white hover:bg-slate-800'}`}>
                 <User size={16} /> Character Studio
              </button>
-             {/* Storyboard Pro (3rd Menu) */}
-             <button
-               onClick={() => setCurrentView('generator')}
-               className={`px-6 py-2 rounded-lg text-sm font-bold flex items-center gap-2 transition-all whitespace-nowrap ${currentView === 'generator' ? 'bg-emerald-600 text-white shadow' : 'text-slate-400 hover:text-white hover:bg-slate-800'}`}
-             >
+             <button onClick={() => setCurrentView('generator')} className={`px-6 py-2 rounded-lg text-sm font-bold flex items-center gap-2 transition-all whitespace-nowrap ${currentView === 'generator' ? 'bg-emerald-600 text-white shadow' : 'text-slate-400 hover:text-white hover:bg-slate-800'}`}>
                 <Video size={16} /> Storyboard Pro
              </button>
           </div>
       </nav>
 
       <main className="container mx-auto px-4 pt-6 flex flex-col items-center">
-        
         {currentView === 'settings' ? (
           <GlobalSettings
-            // Account Management Props
             userProfiles={userProfiles}
             onUpdateProfile={updateProfile}
             activeSlotCount={activeSlotCount}
             onUpdateSlotCount={setActiveSlotCount}
-            // API Key Management Props
             apiKeys={apiKeys}
             activeStoryApiKeyId={activeStoryApiKeyId}
             activeCharacterApiKeyId={activeCharacterApiKeyId}
@@ -575,24 +256,15 @@ const App: React.FC = () => {
         ) : (
             <>
                 <div className="w-full max-w-7xl bg-slate-900/80 border border-slate-800 rounded-2xl p-6 backdrop-blur-md shadow-2xl relative overflow-hidden transition-all duration-300 animate-fade-in">
-                
-                {isLimitReached && (
+                {(accountUsage[currentAccountIndex] || 0) >= MAX_DAILY_COUNT && (
                     <div className="absolute top-0 left-0 right-0 bg-red-500/10 border-b border-red-500/20 p-2 flex items-center justify-center gap-2 text-red-300 text-xs z-20">
-                        <AlertTriangle size={12} />
-                        <span>โควต้าบัญชีนี้เต็มแล้ว กรุณาสลับบัญชีด้านบน</span>
+                        <AlertTriangle size={12} /> <span>โควต้าบัญชีนี้เต็มแล้ว กรุณาสลับบัญชีด้านบน</span>
                     </div>
                 )}
-
                 <div className="flex justify-between items-center mb-6 relative z-10">
-                    <h2 className="text-2xl font-bold text-white flex items-center gap-3">
-                        <Sparkles className="text-emerald-500" />
-                        Veo Storyboard Pro
-                    </h2>
-                    {/* API Key button removed from here as requested */}
+                    <h2 className="text-2xl font-bold text-white flex items-center gap-3"><Sparkles className="text-emerald-500" /> Veo Storyboard Pro</h2>
                 </div>
-
                 <div className="relative z-10">
-                    {/* Storyboard Interface is now the ONLY interface */}
                     <PromptBuilder 
                         characters={characters}
                         activeStoryApiKey={activeStoryApiKeyObj}
@@ -611,7 +283,6 @@ const App: React.FC = () => {
                     />
                 </div>
                 </div>
-
                 <VideoHistory items={history} onCopy={handleCopyOnly} />
             </>
         )}

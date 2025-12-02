@@ -45,9 +45,6 @@ export const openGoogleAccountChooser = (authIndex: number, email?: string) => {
     `AccountChooser-${authIndex}`, 
     `width=${width},height=${height},top=${top},left=${left},resizable=yes,scrollbars=yes,status=yes`
   );
-
-  // In a real application, you might want to periodically check if the user has signed in
-  // or provide a manual refresh button.
 };
 
 
@@ -71,25 +68,46 @@ export const handleAistudioApiKeySelection = async (modelName: string): Promise<
 };
 
 // --- Character Image Generation ---
-export const generateCharacterImage = async (prompt: string, characterApiKey: string): Promise<string> => {
+export const generateCharacterImage = async (prompt: string, characterApiKey: string, referenceImageBase64?: string): Promise<string> => {
   const modelName = 'gemini-3-pro-image-preview';
   
   if (!characterApiKey) {
     throw new Error("API Key จำเป็นต้องมี. โปรดตั้งค่าในตัวจัดการ API Key.");
   }
 
-  // No longer checking window.aistudio.hasSelectedApiKey here, as it's handled by the caller (CharacterStudio)
-  // and handleAistudioApiKeySelection is now a separate, exposed function.
-
   const ai = new GoogleGenAI({ apiKey: characterApiKey });
 
   try {
+    const parts: any[] = [];
+
+    // If a reference image is provided, add it to the parts
+    if (referenceImageBase64) {
+      // The model expects base64 data without the data URI prefix for inlineData
+      // But typically inlineData accepts the full base64 string if the library handles it, 
+      // however, standard pattern is usually just the data. 
+      // Let's strip the prefix if present.
+      const base64Data = referenceImageBase64.replace(/^data:image\/(png|jpeg|jpg|webp);base64,/, "");
+      
+      parts.push({
+        inlineData: {
+          mimeType: "image/png", // Assuming PNG or standard image types
+          data: base64Data
+        }
+      });
+      
+      parts.push({
+        text: `Using the provided image as a strict visual reference for the character's appearance (face, structure), apply the following attributes and style: ${prompt}. Generate a realistic, high-quality image. Aspect ratio 1:1, image size 1K.`
+      });
+    } else {
+      parts.push({
+        text: `${prompt}. Generate a realistic, high-quality image. Aspect ratio 1:1, image size 1K.`
+      });
+    }
+
     const response: GenerateContentResponse = await ai.models.generateContent({
       model: modelName,
       contents: {
-        parts: [
-          { text: `${prompt}. Generate a realistic, high-quality image. Aspect ratio 1:1, image size 1K.` },
-        ],
+        parts: parts,
       },
       config: {
         imageConfig: {
@@ -114,9 +132,7 @@ export const generateCharacterImage = async (prompt: string, characterApiKey: st
     }
   } catch (error: any) {
     console.error("Error from Gemini API (generateCharacterImage):", error);
-    // Specific handling for "Requested entity was not found." as per guidelines
     if (error.message && error.message.includes("Requested entity was not found.")) {
-        // This means the selected key might be invalid/not billed for Veo
         throw new Error("ข้อผิดพลาดในการกำหนดค่า API Key. โปรดตรวจสอบว่า API Key ที่เลือกมาจากโปรเจกต์ GCP ที่มีการเรียกเก็บเงินและเปิดใช้งานสำหรับโมเดลนี้แล้ว. เอนทิตีที่ร้องขอไม่พบ.");
     }
     throw new Error(`ไม่สามารถสร้างรูปภาพได้: ${error.message || 'ข้อผิดพลาด API ไม่ทราบสาเหตุ'}`);
@@ -223,7 +239,6 @@ Output in JSON format as an array of Scene objects:
     }
 
     // Try to parse JSON, sometimes AI might add comments or extra text.
-    // Ensure we handle cases where the output is directly an array string.
     let parsedResponse;
     try {
         parsedResponse = JSON.parse(jsonStr);

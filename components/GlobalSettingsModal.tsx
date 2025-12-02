@@ -1,1 +1,0 @@
-// This component has been replaced by GlobalSettings.tsx and is no longer used.

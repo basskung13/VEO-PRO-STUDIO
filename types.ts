@@ -37,12 +37,13 @@ export interface CustomOption {
   attributeKey: 'gender' | 'ageGroup' | 'skinTone' | 'faceShape' | 'eyeShape' | 'eyeColor' |
                 'hairStyle' | 'hairColor' | 'hairTexture' | 'facialFeatures' | 'bodyType' |
                 'clothingStyle' | 'clothingColor' | 'clothingDetail' | 'accessories' |
-                'weapons' | 'personality' | 'currentMood' | 'environmentElement' |
-                'storyDialect' | 'storyTone' | 'storyStyle'; // New attribute keys for Storyboard
+                'weapons' | 'personality' | 'currentMood' | 'species' | 'environmentElement' |
+                'storyDialect' | 'storyTone' | 'storyStyle' | 'storyCategory' | 'storyDetail'; 
 }
 
 // Character Studio Types
 export interface CharacterAttributes {
+  species: string; // New attribute
   gender: string;
   ageGroup: string;
   skinTone: string;
