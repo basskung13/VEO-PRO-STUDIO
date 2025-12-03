@@ -5,7 +5,7 @@ import { getFirestore } from 'firebase/firestore';
 
 // Configuration from your Firebase Console
 const firebaseConfig = {
-  apiKey: "AIzaSyCCTCZu6CwMIgo7UZv0fIpQGQ-Lu6r0RQE",
+  apiKey: "AIzaSyCCTCZu6CwMIGo7UZv0fIpQGQ-Lu6r0RQE",
   authDomain: "veo-studio-95f4b.firebaseapp.com",
   projectId: "veo-studio-95f4b",
   storageBucket: "veo-studio-95f4b.firebasestorage.app",
