@@ -1,8 +1,7 @@
-
-import React, { useState, useEffect } from 'react';
-import { Scene, Character, ApiKey, AspectRatio, CustomOption, Project } from '../types';
+import React, { useState, useEffect, useRef } from 'react';
+import { Scene, Character, ApiKey, AspectRatio, CustomOption, Project, AccountUsage } from '../types';
 import { generateStoryboardFromPlot, generateCreativePrompt } from '../services/geminiService';
-import { Film, Sun, Mic2, Wand2, User, Check, RefreshCw, Languages, MessageSquare, Clapperboard, Settings2, Loader2, Sparkles, Plus, Trash2, Copy, MonitorPlay } from 'lucide-react';
+import { Film, Sun, Mic2, Wand2, User, Check, RefreshCw, Languages, MessageSquare, Clapperboard, Settings2, Loader2, Sparkles, Plus, Trash2, Copy, MonitorPlay, Zap, X, Play, AlertTriangle } from 'lucide-react';
 
 interface PromptBuilderProps {
   // Now receives the full project object
@@ -12,11 +11,16 @@ interface PromptBuilderProps {
   characters: Character[];
   activeStoryApiKey: ApiKey | null;
   onOpenApiKeyManager: () => void;
-  onGenerateSceneVideo: (prompt: string) => void;
+  onGenerateSceneVideo: (prompt: string) => boolean;
   onNavigateToCharacterStudio: () => void;
   customOptions: CustomOption[];
   onAddCustomOption: (option: CustomOption) => void;
   onRemoveCustomOption: (id: string) => void;
+  
+  // Account Stats for Batch Logic
+  accountUsage: AccountUsage;
+  activeSlotCount: number;
+  maxDailyCount: number;
 }
 
 const WEATHERS = ['Sunny (แดดจัด)', 'Cloudy (เมฆมาก)', 'Rainy (ฝนตก)', 'Stormy (พายุ)', 'Snowy (หิมะตก)', 'Foggy (หมอกหนา)', 'Windy (ลมแรง)'];
@@ -42,9 +46,13 @@ const PromptBuilder: React.FC<PromptBuilderProps> = ({
   onNavigateToCharacterStudio,
   customOptions,
   onAddCustomOption,
-  onRemoveCustomOption
+  onRemoveCustomOption,
+  accountUsage,
+  activeSlotCount,
+  maxDailyCount
 }) => {
   const [isGenerating, setIsGenerating] = useState(false);
+  const [showBatchModal, setShowBatchModal] = useState(false);
 
   // Helper to update project settings easier
   const updateSettings = (key: keyof typeof project.settings, value: any) => {
@@ -253,11 +261,172 @@ const PromptBuilder: React.FC<PromptBuilderProps> = ({
       setIsGenerating(false);
     }
   };
+  
+  // --- BATCH GENERATION COMPONENT ---
+  const BatchProductionModal = () => {
+    const [currentIndex, setCurrentIndex] = useState(0);
+    const [isAutoRunning, setIsAutoRunning] = useState(false);
+    // Use ReturnType<typeof setTimeout> to support both browser and potential Node-like environments
+    const autoRunRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+    // Calculate queue logic locally for display
+    const queueItems = project.scenes.map((scene, idx) => {
+      const prompt = constructPrompt(scene);
+      return { scene, prompt, idx };
+    });
+
+    const stopAutoRun = () => {
+        if (autoRunRef.current) clearTimeout(autoRunRef.current);
+        setIsAutoRunning(false);
+    };
+
+    const runBatchItem = (index: number) => {
+        if (index >= queueItems.length) {
+            stopAutoRun();
+            return;
+        }
+
+        const item = queueItems[index];
+        const success = onGenerateSceneVideo(item.prompt);
+        
+        if (success) {
+            updateScene(item.scene.id, 'generationStatus', 'completed');
+            
+            // If Auto Running, schedule next
+            if (isAutoRunning) {
+                // If this is the last item, stop
+                if (index === queueItems.length - 1) {
+                     stopAutoRun();
+                } else {
+                     setCurrentIndex(index + 1);
+                     autoRunRef.current = setTimeout(() => {
+                         runBatchItem(index + 1);
+                     }, 4000); // 4 seconds delay between windows to be safe
+                }
+            } else {
+                // Manual Mode: Just advance cursor
+                if (index < queueItems.length - 1) setCurrentIndex(index + 1);
+            }
+        } else {
+            // Failed (quota full?), stop auto run
+            stopAutoRun();
+        }
+    };
+
+    const startAutoRun = () => {
+        setIsAutoRunning(true);
+        runBatchItem(currentIndex);
+    };
+
+    useEffect(() => {
+        return () => stopAutoRun();
+    }, []);
+
+    // Filter to only not completed for initial view? No, show all for overview.
+
+    return (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[2000] flex items-center justify-center p-4">
+            <div className="bg-slate-900 border border-slate-700 rounded-2xl w-full max-w-3xl shadow-2xl flex flex-col max-h-[90vh]">
+                <div className="p-6 border-b border-slate-800 flex justify-between items-center bg-slate-950 rounded-t-2xl">
+                    <div>
+                        <h2 className="text-xl font-bold text-white flex items-center gap-2">
+                            <Zap className="text-emerald-500 fill-emerald-500" /> Auto-Production Queue
+                        </h2>
+                        <p className="text-slate-400 text-sm">Automate the opening of Gemini windows for each scene.</p>
+                    </div>
+                    <button onClick={() => setShowBatchModal(false)} className="text-slate-500 hover:text-white">
+                        <X size={24} />
+                    </button>
+                </div>
+                
+                <div className="p-6 overflow-y-auto flex-1 space-y-4">
+                    <div className="flex gap-4 mb-4 bg-emerald-900/10 border border-emerald-900/30 p-4 rounded-xl items-center">
+                         <div className="bg-emerald-500/20 p-3 rounded-full text-emerald-400">
+                             <Play size={24} fill="currentColor" />
+                         </div>
+                         <div className="flex-1">
+                             <h3 className="font-bold text-emerald-100">Batch Control</h3>
+                             <p className="text-xs text-emerald-200/70">
+                                 {isAutoRunning 
+                                    ? `Running sequence... Please wait 4s between windows.` 
+                                    : `Click Start to automatically copy prompts and open windows sequentially.`}
+                             </p>
+                         </div>
+                         {!isAutoRunning ? (
+                             <button 
+                                onClick={startAutoRun}
+                                className="bg-emerald-600 hover:bg-emerald-500 text-white px-6 py-3 rounded-xl font-bold shadow-lg shadow-emerald-900/20 flex items-center gap-2 transition-all hover:scale-105"
+                             >
+                                 Start Auto-Sequence
+                             </button>
+                         ) : (
+                             <button 
+                                onClick={stopAutoRun}
+                                className="bg-red-600 hover:bg-red-500 text-white px-6 py-3 rounded-xl font-bold shadow-lg shadow-red-900/20 flex items-center gap-2 animate-pulse"
+                             >
+                                 Stop Sequence
+                             </button>
+                         )}
+                    </div>
+
+                    <div className="space-y-2">
+                        {queueItems.map((item, i) => {
+                            const isCurrent = i === currentIndex;
+                            const isCompleted = item.scene.generationStatus === 'completed';
+                            
+                            return (
+                                <div 
+                                    key={item.scene.id} 
+                                    className={`p-3 rounded-lg border flex items-center justify-between transition-all ${
+                                        isCurrent 
+                                            ? 'bg-emerald-900/20 border-emerald-500/50 shadow-md transform scale-[1.01]' 
+                                            : isCompleted
+                                                ? 'bg-slate-950/50 border-slate-800 opacity-70'
+                                                : 'bg-slate-900 border-slate-800'
+                                    }`}
+                                >
+                                    <div className="flex items-center gap-4 overflow-hidden">
+                                        <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs shrink-0 ${isCompleted ? 'bg-emerald-600 text-white' : isCurrent ? 'bg-white text-emerald-600' : 'bg-slate-800 text-slate-500'}`}>
+                                            {isCompleted ? <Check size={14} /> : i + 1}
+                                        </div>
+                                        <div className="min-w-0">
+                                            <p className={`text-sm font-medium truncate ${isCurrent ? 'text-white' : 'text-slate-400'}`}>Scene {i+1}: {item.scene.action}</p>
+                                            <p className="text-xs text-slate-600 truncate">{item.prompt}</p>
+                                        </div>
+                                    </div>
+                                    
+                                    <div className="flex items-center gap-2">
+                                        {isCurrent && isAutoRunning && <Loader2 size={16} className="text-emerald-500 animate-spin" />}
+                                        <button 
+                                            onClick={() => {
+                                                setCurrentIndex(i);
+                                                runBatchItem(i);
+                                            }}
+                                            disabled={isAutoRunning && !isCurrent}
+                                            className={`px-3 py-1.5 rounded text-xs font-bold transition-colors ${
+                                                isCompleted 
+                                                ? 'bg-slate-800 text-emerald-500' 
+                                                : 'bg-slate-800 hover:bg-emerald-600 hover:text-white text-slate-300'
+                                            }`}
+                                        >
+                                            {isCompleted ? 'Re-Run' : 'Launch'}
+                                        </button>
+                                    </div>
+                                </div>
+                            );
+                        })}
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+  };
 
 
   return (
     <div className="flex flex-col lg:flex-row gap-6 h-full">
-      
+      {showBatchModal && <BatchProductionModal />}
+
       {/* Left Column: Story Setup */}
       <div className="w-full lg:w-1/3 space-y-6">
         <div className="bg-slate-900 border border-slate-700 rounded-xl p-6 shadow-lg">
@@ -435,9 +604,20 @@ const PromptBuilder: React.FC<PromptBuilderProps> = ({
                     <MonitorPlay className="text-emerald-500" /> Storyboard Scenes
                 </h3>
              </div>
-             <button onClick={handleAddScene} className="bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white px-3 py-2 rounded-lg text-xs font-bold flex items-center gap-2 transition-all">
-                <Plus size={14} /> เพิ่มฉากเอง
-             </button>
+             <div className="flex gap-2">
+                 {/* BATCH BUTTON */}
+                 {project.scenes.length > 0 && (
+                     <button 
+                        onClick={() => setShowBatchModal(true)}
+                        className="bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-2 rounded-lg text-xs font-bold flex items-center gap-2 transition-all shadow-lg shadow-emerald-900/20 hover:scale-105"
+                     >
+                        <Zap size={14} fill="currentColor" /> Auto-Production Queue
+                     </button>
+                 )}
+                 <button onClick={handleAddScene} className="bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white px-3 py-2 rounded-lg text-xs font-bold flex items-center gap-2 transition-all">
+                    <Plus size={14} /> เพิ่มฉากเอง
+                 </button>
+             </div>
           </div>
           
           <div className="flex-1 overflow-y-auto pr-2 space-y-4 min-h-[500px]">
@@ -457,9 +637,18 @@ const PromptBuilder: React.FC<PromptBuilderProps> = ({
                             <span className="text-slate-500 text-xs bg-slate-950 px-2 py-0.5 rounded border border-slate-800">{scene.duration}</span>
                              <span className="text-emerald-500 text-xs bg-emerald-950/30 px-2 py-0.5 rounded border border-emerald-900/50">{scene.shotType}</span>
                         </div>
-                        <button onClick={() => handleRemoveScene(scene.id)} className="text-slate-600 hover:text-red-400 p-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                            <Trash2 size={16} />
-                        </button>
+                        <div className="flex items-center gap-2">
+                             {/* Quick Status Toggle */}
+                             <button 
+                                onClick={() => updateScene(scene.id, 'generationStatus', scene.generationStatus === 'completed' ? 'idle' : 'completed')}
+                                className={`text-[10px] px-2 py-0.5 rounded border transition-colors ${scene.generationStatus === 'completed' ? 'bg-emerald-900/50 text-emerald-400 border-emerald-500' : 'bg-slate-950 text-slate-500 border-slate-800'}`}
+                             >
+                                 {scene.generationStatus === 'completed' ? 'Done' : 'Pending'}
+                             </button>
+                            <button onClick={() => handleRemoveScene(scene.id)} className="text-slate-600 hover:text-red-400 p-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                <Trash2 size={16} />
+                            </button>
+                        </div>
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
@@ -476,7 +665,7 @@ const PromptBuilder: React.FC<PromptBuilderProps> = ({
                         <div className="space-y-2">
                              <div>
                                 <label className="text-[10px] text-slate-500 uppercase font-bold block mb-1">บทพูด (Dialogue)</label>
-                                <textarea value={scene.dialogue} onChange={e => updateScene(scene.id, 'dialogue', e.target.value)} placeholder="(ไม่มีบทพูด)" className="w-full bg-slate-950 border border-slate-700 rounded p-2 text-xs text-slate-300 h-16 resize-none focus:border-emerald-500 outline-none italic"/>
+                                <textarea value={scene.dialogue} onChange={e => updateScene(scene.id, 'dialogue', e.target.value)} placeholder="(ไม่มีบทพูด)" className="w-full bg-slate-900 border border-slate-700 rounded p-2 text-xs text-slate-300 h-16 resize-none focus:border-emerald-500 outline-none italic"/>
                             </div>
                              <div>
                                 <label className="text-[10px] text-slate-500 uppercase font-bold block mb-1">องค์ประกอบเสริม</label>
@@ -496,7 +685,13 @@ const PromptBuilder: React.FC<PromptBuilderProps> = ({
                             <button onClick={() => navigator.clipboard.writeText(constructPrompt(scene))} className="p-2 bg-slate-800 text-slate-400 hover:text-white rounded hover:bg-slate-700 transition-colors" title="Copy Prompt">
                                 <Copy size={14} />
                             </button>
-                             <button onClick={() => onGenerateSceneVideo(constructPrompt(scene))} className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded flex items-center gap-2 shadow-lg shadow-emerald-900/20 whitespace-nowrap">
+                             <button 
+                                onClick={() => {
+                                    const success = onGenerateSceneVideo(constructPrompt(scene));
+                                    if (success) updateScene(scene.id, 'generationStatus', 'completed');
+                                }} 
+                                className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded flex items-center gap-2 shadow-lg shadow-emerald-900/20 whitespace-nowrap"
+                            >
                                 <MonitorPlay size={14} /> สร้างวิดีโอ (Veo)
                             </button>
                          </div>

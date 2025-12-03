@@ -168,7 +168,7 @@ const GlobalSettings: React.FC<GlobalSettingsProps> = ({
                         <div className="text-[10px] text-slate-500 flex items-center gap-1">Get Video Gen Key <ExternalLink size={8}/></div>
                     </div>
                  </a>
-                 <a href="https://upload-post.com/" target="_blank" rel="noreferrer" className="flex items-center gap-3 p-3 bg-slate-800 hover:bg-slate-700 rounded-lg border border-slate-700 transition-all group">
+                 <a href="https://app.upload-post.com/api-keys" target="_blank" rel="noreferrer" className="flex items-center gap-3 p-3 bg-slate-800 hover:bg-slate-700 rounded-lg border border-slate-700 transition-all group">
                     <div className="bg-orange-500/20 p-2 rounded text-orange-400 group-hover:text-white group-hover:bg-orange-500 transition-colors"><Share2 size={18}/></div>
                     <div>
                         <div className="text-xs font-bold text-slate-300">Upload-Post.com</div>

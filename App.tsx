@@ -202,7 +202,8 @@ const App: React.FC = () => {
   const handleAddCustomOption = (option: CustomOption) => setCustomOptions(prev => [...prev, option]);
   const handleRemoveCustomOption = (id: string) => setCustomOptions(prev => prev.filter(opt => opt.id !== id));
 
-  const handleGenerateSceneVideo = (prompt: string) => {
+  // Updated to return boolean for batch processing logic
+  const handleGenerateSceneVideo = (prompt: string): boolean => {
     const availableAccounts: number[] = [];
     for (let i = 0; i < activeSlotCount; i++) {
       if ((accountUsage[i] || 0) < MAX_DAILY_COUNT) {
@@ -211,16 +212,29 @@ const App: React.FC = () => {
     }
 
     if (availableAccounts.length > 0) {
-      const randomIndex = Math.floor(Math.random() * availableAccounts.length);
-      const nextAccountIndex = availableAccounts[randomIndex];
+      // Find current index in available, or pick next one
+      let nextAccountIndex = currentAccountIndex;
+      if (!availableAccounts.includes(currentAccountIndex)) {
+          // If current is full, pick random or first available
+          // Simple load balancing: pick the one with lowest usage? Or just random.
+          const randomIndex = Math.floor(Math.random() * availableAccounts.length);
+          nextAccountIndex = availableAccounts[randomIndex];
+      }
+
       setCurrentAccountIndex(nextAccountIndex);
       setAccountUsage(prev => ({ ...prev, [nextAccountIndex]: (prev[nextAccountIndex] || 0) + 1 }));
       const config = { prompt: prompt, aspectRatio: activeProject?.settings.aspectRatio || '16:9' };
       const finalPrompt = constructVeoPrompt(config);
+      
+      // Auto copy to clipboard for user convenience before opening
+      navigator.clipboard.writeText(finalPrompt).catch(() => {});
+      
       openGeminiWeb(nextAccountIndex); 
       addToHistory(prompt, finalPrompt);
+      return true;
     } else {
       alert("โควต้าการสร้างวิดีโอของทุกบัญชีเต็มแล้วสำหรับวันนี้ กรุณารอวันพรุ่งนี้หรือเคลียร์โควต้าบัญชี");
+      return false;
     }
   };
 
@@ -397,6 +411,9 @@ const App: React.FC = () => {
                         customOptions={customOptions}
                         onAddCustomOption={handleAddCustomOption}
                         onRemoveCustomOption={handleRemoveCustomOption}
+                        accountUsage={accountUsage}
+                        activeSlotCount={activeSlotCount}
+                        maxDailyCount={MAX_DAILY_COUNT}
                     />
                 </div>
                 </div>
