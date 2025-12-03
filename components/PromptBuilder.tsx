@@ -1,11 +1,16 @@
-
 import React, { useState } from 'react';
 import { Scene, Character, ApiKey, AspectRatio, CustomOption } from '../types';
 import { generateStoryboardFromPlot, generateCreativePrompt, handleAistudioApiKeySelection } from '../services/geminiService';
 // Fix: Added User and Check icons to the import statement.
-import { Film, Sun, Mic2, Wand2, AlertCircle, Video, Plus, Trash2, Copy, MonitorPlay, Key, Link, User, Check, RefreshCw, Languages, MessageSquare, Clapperboard, Settings2, Filter } from 'lucide-react'; // Added Link icon for billing
+import { Film, Sun, Mic2, Wand2, AlertCircle, Video, Plus, Trash2, Copy, MonitorPlay, Key, Link, User, Check, RefreshCw, Languages, MessageSquare, Clapperboard, Settings2, Filter, Loader2, Sparkles } from 'lucide-react'; // Added Link icon for billing
 
 interface PromptBuilderProps {
+  // New props for state management lifted to App.tsx
+  plot: string;
+  setPlot: (plot: string) => void;
+  scenes: Scene[];
+  setScenes: (scenes: Scene[]) => void;
+  
   characters: Character[];
   activeStoryApiKey: ApiKey | null;
   onOpenApiKeyManager: () => void;
@@ -37,7 +42,19 @@ const STORY_ATTRIBUTE_CATEGORIES_MAP: { [key: string]: string } = {
 
 const STORY_ATTRIBUTE_KEYS = ['storyDialect', 'storyTone', 'storyStyle', 'environmentElement'];
 
+// DEFAULT OPTIONS for Storyboard to ensure dropdowns are not empty
+const DEFAULT_STORY_OPTIONS: { [key: string]: string[] } = {
+  storyDialect: ['TH ไทยกลาง', 'TH ภาษาอีสาน', 'TH ภาษาเหนือ (คำเมือง)', 'TH ภาษาใต้', 'TH ราชาศัพท์', 'TH ไทยโบราณ', 'CN จีนคลาสสิก', 'KR เกาหลีโบราณ', 'JP ญี่ปุ่น', 'GB English', 'Old English'],
+  storyTone: ['Serious/Dramatic (จริงจัง/ดราม่า)', 'Comedy (ตลก/ขบขัน)', 'Romantic (โรแมนติก)', 'Action/Thriller (แอคชั่น/ระทึกขวัญ)', 'Horror (สยองขวัญ)', 'Mystery (ลึกลับ)', 'Whimsical (เพ้อฝัน)', 'Sarcastic (เสียดสี)'],
+  storyStyle: ['Cinematic Movie (ภาพยนตร์)', 'Documentary (สารคดี)', 'Anime Style (อนิเมะ)', 'Music Video (MV)', 'Vlog/Handheld (มือถือ)', 'Noir (ฟิล์มนัวร์)', 'Wes Anderson Style (สมมาตร/พาสเทล)', 'Cyberpunk (ไซเบอร์พังค์)'],
+  environmentElement: ['Crowd (ฝูงคน)', 'Rain (ฝน)', 'Fog (หมอก)', 'Neon Lights (ไฟนีออน)', 'Trees (ต้นไม้)', 'Cars (รถยนต์)', 'Animals (สัตว์)', 'Fire (ไฟ)', 'Smoke (ควัน)']
+};
+
 const PromptBuilder: React.FC<PromptBuilderProps> = ({ 
+  plot,
+  setPlot,
+  scenes,
+  setScenes,
   characters, 
   activeStoryApiKey,
   onOpenApiKeyManager,
@@ -53,8 +70,7 @@ const PromptBuilder: React.FC<PromptBuilderProps> = ({
   onAddCustomOption,
   onRemoveCustomOption
 }) => {
-  const [plot, setPlot] = useState('');
-  const [scenes, setScenes] = useState<Scene[]>([]);
+  // Local state for generating status
   const [isGenerating, setIsGenerating] = useState(false);
 
   // Global Settings
@@ -77,10 +93,13 @@ const PromptBuilder: React.FC<PromptBuilderProps> = ({
   const cleanVal = (val: string) => val.split('(')[0].trim();
 
   // Helper to get options from customOptions prop based on attribute key
-  const getOptions = (key: 'environmentElement' | 'storyDialect' | 'storyTone' | 'storyStyle') => {
-    return customOptions
+  const getOptions = (key: string) => {
+    const defaults = DEFAULT_STORY_OPTIONS[key] || [];
+    const customs = customOptions
       .filter(opt => opt.attributeKey === key)
       .map(opt => opt.value);
+    // Merge and unique
+    return Array.from(new Set([...defaults, ...customs]));
   };
   
   const combinedEnvironmentElements = getOptions('environmentElement');
@@ -219,7 +238,7 @@ const PromptBuilder: React.FC<PromptBuilderProps> = ({
   };
 
   const toggleEnvironmentElement = (sceneId: string, element: string) => {
-    setScenes(prevScenes => prevScenes.map(s => {
+    setScenes(scenes.map(s => {
       if (s.id === sceneId) {
         const currentElements = s.environmentElements || [];
         const newElements = currentElements.includes(element)
@@ -491,9 +510,7 @@ const PromptBuilder: React.FC<PromptBuilderProps> = ({
                       value={dialect} onChange={e => setDialect(e.target.value)}
                       className="w-full bg-slate-900 border border-slate-700 rounded text-xs text-white p-1.5 outline-none"
                    >
-                       {combinedDialects.length > 0 ? (
-                         combinedDialects.map(d => <option key={d} value={d}>{d}</option>)
-                       ) : <option value="">(ไม่มีตัวเลือก)</option>}
+                       {combinedDialects.map(d => <option key={d} value={d}>{d}</option>)}
                    </select>
                </div>
                
@@ -505,9 +522,7 @@ const PromptBuilder: React.FC<PromptBuilderProps> = ({
                       value={storyTone} onChange={e => setStoryTone(e.target.value)}
                       className="w-full bg-slate-900 border border-slate-700 rounded text-xs text-white p-1.5 outline-none"
                    >
-                       {combinedTones.length > 0 ? (
-                         combinedTones.map(t => <option key={t} value={t}>{t}</option>)
-                       ) : <option value="">(ไม่มีตัวเลือก)</option>}
+                       {combinedTones.map(t => <option key={t} value={t}>{t}</option>)}
                    </select>
                </div>
 
@@ -519,233 +534,154 @@ const PromptBuilder: React.FC<PromptBuilderProps> = ({
                       value={storyStyle} onChange={e => setStoryStyle(e.target.value)}
                       className="w-full bg-slate-900 border border-slate-700 rounded text-xs text-white p-1.5 outline-none"
                    >
-                       {combinedStyles.length > 0 ? (
-                         combinedStyles.map(s => <option key={s} value={s}>{s}</option>)
-                       ) : <option value="">(ไม่มีตัวเลือก)</option>}
+                       {combinedStyles.map(s => <option key={s} value={s}>{s}</option>)}
                    </select>
                </div>
-
-               {/* Custom Option Management UI */}
-               <div className="mt-4 pt-4 border-t border-slate-800">
-                  <h5 className="text-[10px] font-bold text-slate-400 uppercase mb-2 flex items-center gap-1">
-                    <Filter size={10} /> จัดการตัวเลือกเอง (Custom Options)
-                  </h5>
-                  <div className="space-y-2">
-                    <div>
-                      <select 
-                        value={selectedManageCategory}
-                        onChange={(e) => setSelectedManageCategory(e.target.value)}
-                        className="w-full bg-slate-900 border border-slate-700 rounded text-[10px] text-white p-1 outline-none mb-1"
-                      >
-                        {STORY_ATTRIBUTE_KEYS.map(key => (
-                          <option key={key} value={key}>{STORY_ATTRIBUTE_CATEGORIES_MAP[key]}</option>
-                        ))}
-                      </select>
-                    </div>
-                    <div className="flex gap-1">
-                      <input 
-                        type="text" 
-                        value={newCustomOptionValue}
-                        onChange={e => setNewCustomOptionValue(e.target.value)}
-                        placeholder="เพิ่มตัวเลือกใหม่..."
-                        className="flex-1 bg-slate-900 border border-slate-700 rounded text-[10px] text-white p-1 outline-none"
-                      />
-                      <button 
-                        onClick={handleAddCustomOptionClick}
-                        className="bg-emerald-600 hover:bg-emerald-500 text-white p-1 rounded transition-colors"
-                      >
-                        <Plus size={14}/>
-                      </button>
-                    </div>
-                    
-                    {/* List of custom options for selected category */}
-                    <div className="max-h-24 overflow-y-auto pr-1 space-y-1 mt-2">
-                      {customOptions.filter(opt => opt.attributeKey === selectedManageCategory).map(opt => (
-                        <div key={opt.id} className="flex justify-between items-center bg-slate-900 border border-slate-800 rounded px-2 py-1">
-                          <span className="text-slate-300 text-[10px] truncate">{opt.value}</span>
-                          <button 
-                            onClick={() => onRemoveCustomOption(opt.id)}
-                            className="text-slate-500 hover:text-red-400"
-                          >
-                            <Trash2 size={10}/>
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-               </div>
             </div>
-
-            <button
-              onClick={handleAiGenerate}
-              disabled={isGenerating || !activeStoryApiKey?.key || !plot.trim()}
-              className={`w-full py-3 rounded-lg font-bold text-sm flex items-center justify-center gap-2 transition-all ${
-                activeStoryApiKey?.key && plot.trim()
-                  ? 'bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white shadow-lg' 
-                  : 'bg-slate-800 text-slate-500'
-              }`}
-            >
-              {isGenerating ? (
-                <>กำลังเขียนบท...</>
-              ) : (
-                <><Wand2 size={16} /> {activeStoryApiKey?.key ? 'ใช้ AI เขียนบท (Generate Scenes)' : 'ตั้งค่า API Key เพื่อใช้ AI'}</>
-              )}
-            </button>
             
-            {!activeStoryApiKey?.key && (
-               <p className="text-xs text-center text-amber-500 cursor-pointer hover:underline" onClick={onOpenApiKeyManager}>
-                 <AlertCircle size={10} className="inline mr-1"/>
-                 คลิกเพื่อตั้งค่า API Key (Story)
-               </p>
-            )}
+            <button 
+                onClick={handleAiGenerate}
+                disabled={isGenerating || !activeStoryApiKey?.key}
+                className={`w-full py-4 rounded-xl font-bold text-sm shadow-lg transform hover:scale-[1.02] transition-all flex items-center justify-center gap-2 ${
+                    isGenerating || !activeStoryApiKey?.key
+                    ? 'bg-slate-800 text-slate-500 cursor-not-allowed'
+                    : 'bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white shadow-emerald-900/20'
+                }`}
+            >
+                {isGenerating ? (
+                    <><Loader2 size={18} className="animate-spin"/> AI กำลังเขียนบท...</>
+                ) : (
+                    <><Sparkles size={18}/> ใช้ AI สร้างบท (Generate Storyboard)</>
+                )}
+            </button>
           </div>
         </div>
-
       </div>
-
-      {/* Right Column: Timeline */}
-      <div className="w-full lg:w-2/3 space-y-4">
-        <div className="flex justify-between items-center bg-slate-900/80 p-4 rounded-xl border border-slate-800 backdrop-blur-sm sticky top-0 z-10">
-          <h2 className="text-xl font-bold text-white flex items-center gap-2">
-            <Video size={20} className="text-emerald-500"/> Timeline ({scenes.length} Scenes)
-          </h2>
-          <button 
-            onClick={handleAddScene}
-            className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold rounded-lg flex items-center gap-2 transition-colors border border-slate-700"
-          >
-            <Plus size={14} /> เพิ่มฉากเปล่า
-          </button>
-        </div>
-
-        <div className="space-y-4 pb-20">
-          {scenes.length === 0 && (
-             <div className="text-center py-20 text-slate-600 border-2 border-dashed border-slate-800 rounded-xl">
-                <Film size={48} className="mx-auto mb-4 opacity-20"/>
-                <p>ยังไม่มีฉากในไทม์ไลน์</p>
-                <p className="text-xs mt-2">พิมพ์พล็อตเรื่องทางซ้าย เลือกบรรยากาศ แล้วกด "ใช้ AI เขียนบท"</p>
+      
+      {/* Right Column: Scene List */}
+      <div className="w-full lg:w-2/3 h-full flex flex-col">
+          <div className="flex justify-between items-center mb-4 bg-slate-900/50 p-4 rounded-xl border border-slate-800">
+             <div>
+                <h3 className="text-xl font-bold text-white flex items-center gap-2">
+                    <Video className="text-emerald-500" /> Storyboard Scenes
+                </h3>
+                <p className="text-slate-400 text-xs">ฉากที่สร้างจาก AI จะปรากฏที่นี่ คุณสามารถแก้ไขและกดสร้างวิดีโอทีละฉากได้</p>
              </div>
-          )}
-
-          {scenes.map((scene, index) => (
-            <div key={scene.id} className="bg-slate-900 border border-slate-700 rounded-xl p-4 shadow-sm hover:border-emerald-500/50 transition-all group">
-              <div className="flex justify-between items-start mb-4">
-                <span className="bg-slate-950 text-slate-400 text-xs px-2 py-1 rounded font-mono border border-slate-800">
-                  SCENE {index + 1}
-                </span>
-                <div className="flex gap-2">
-                   <button 
-                     onClick={() => handleRemoveScene(scene.id)}
-                     className="text-slate-600 hover:text-red-400 p-1"
-                   >
-                     <Trash2 size={16} />
-                   </button>
+             <button 
+                onClick={handleAddScene}
+                className="bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white px-3 py-2 rounded-lg text-xs font-bold flex items-center gap-2 transition-all"
+             >
+                <Plus size={14} /> เพิ่มฉากเอง
+             </button>
+          </div>
+          
+          <div className="flex-1 overflow-y-auto pr-2 space-y-4 min-h-[500px]">
+             {scenes.length === 0 && (
+                <div className="h-full flex flex-col items-center justify-center text-slate-600 border-2 border-dashed border-slate-800 rounded-xl bg-slate-900/20">
+                    <Film size={48} className="mb-4 opacity-50" />
+                    <p className="text-lg font-medium">ยังไม่มีฉาก</p>
+                    <p className="text-sm">สร้างพล็อตเรื่องทางซ้ายแล้วกดปุ่ม "ใช้ AI สร้างบท"</p>
                 </div>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                 <div>
-                    <label className="text-[10px] uppercase font-bold text-slate-500">Character</label>
-                    <select 
-                      value={scene.characterId}
-                      onChange={e => updateScene(scene.id, 'characterId', e.target.value)}
-                      className="w-full bg-slate-950 border border-slate-700 rounded p-2 text-sm text-white focus:border-emerald-500 outline-none"
-                    >
-                      <option value="none">ไม่ระบุ / คนทั่วไป</option>
-                      {characters.map(c => <option key={c.id} value={c.id}>{c.name} ({c.nameEn})</option>)}
-                    </select>
-                 </div>
-                 <div>
-                    <label className="text-[10px] uppercase font-bold text-slate-500">Shot Type</label>
-                    <select 
-                      value={scene.shotType}
-                      onChange={e => updateScene(scene.id, 'shotType', e.target.value)}
-                      className="w-full bg-slate-950 border border-slate-700 rounded p-2 text-sm text-white focus:border-emerald-500 outline-none"
-                    >
-                      <option value="Wide Angle">Wide Angle (มุมกว้าง)</option>
-                      <option value="Close Up (ระยะใกล้)">Close Up (ระยะใกล้)</option>
-                      <option value="Drone Shot">Drone Shot (โดรน)</option>
-                      <option value="Tracking Shot">Tracking Shot (กล้องตาม)</option>
-                      <option value="Over the Shoulder">Over the Shoulder (ข้ามไหล่)</option>
-                      <option value="Low Angle">Low Angle (มุมเสย)</option>
-                    </select>
-                 </div>
-                 <div className="md:col-span-2">
-                    <label className="text-[10px] uppercase font-bold text-slate-500">Action / เหตุการณ์</label>
-                    <input 
-                      value={scene.action}
-                      onChange={e => updateScene(scene.id, 'action', e.target.value)}
-                      className="w-full bg-slate-950 border border-slate-700 rounded p-2 text-sm text-white focus:border-emerald-500 outline-none"
-                      placeholder="ตัวละครทำอะไร..."
-                    />
-                 </div>
-                 <div className="md:col-span-2">
-                    <label className="text-[10px] uppercase font-bold text-slate-500">Setting / สถานที่</label>
-                    <input 
-                      value={scene.setting}
-                      onChange={e => updateScene(scene.id, 'setting', e.target.value)}
-                      className="w-full bg-slate-950 border border-slate-700 rounded p-2 text-sm text-white focus:border-emerald-500 outline-none"
-                      placeholder="สถานที่..."
-                    />
-                 </div>
-                 <div className="md:col-span-2">
-                    <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">บทพูดตัวอย่าง (Dialogue)</label>
-                    <textarea 
-                      value={scene.dialogue || ''}
-                      onChange={e => updateScene(scene.id, 'dialogue', e.target.value)}
-                      className="w-full h-16 bg-slate-950 border border-slate-700 rounded p-2 text-sm text-white focus:border-emerald-500 outline-none resize-none"
-                      placeholder="บทพูดของตัวละครในฉากนี้..."
-                    />
-                 </div>
-                 <div className="md:col-span-2">
-                    <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">องค์ประกอบในฉาก (Environment Elements)</label>
-                    <div className="flex flex-wrap gap-2">
-                      {combinedEnvironmentElements.length > 0 ? (
-                        combinedEnvironmentElements.map(option => (
-                          <span 
-                            key={option} 
-                            onClick={() => toggleEnvironmentElement(scene.id, option)}
-                            className={`cursor-pointer px-3 py-1 text-xs rounded-full border transition-all ${
-                              scene.environmentElements?.includes(option) 
-                                ? 'bg-emerald-900/50 border-emerald-500 text-emerald-100' 
-                                : 'bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-700'
-                            }`}
-                          >
-                            {option}
-                          </span>
-                        ))
-                      ) : (
-                        <p className="text-slate-500 text-xs">(ไม่มีตัวเลือก)</p>
-                      )}
+             )}
+             
+             {scenes.map((scene, index) => (
+                <div key={scene.id} className="bg-slate-900 border border-slate-800 rounded-xl p-4 shadow-lg hover:border-emerald-500/30 transition-all group">
+                    <div className="flex justify-between items-start mb-3">
+                        <div className="flex items-center gap-3">
+                            <span className="bg-slate-800 text-slate-300 font-mono font-bold px-2 py-1 rounded text-xs">
+                                SCENE {index + 1}
+                            </span>
+                            <span className="text-slate-500 text-xs bg-slate-950 px-2 py-0.5 rounded border border-slate-800">
+                                {scene.duration}
+                            </span>
+                             <span className="text-emerald-500 text-xs bg-emerald-950/30 px-2 py-0.5 rounded border border-emerald-900/50">
+                                {scene.shotType}
+                            </span>
+                        </div>
+                        <button 
+                           onClick={() => handleRemoveScene(scene.id)}
+                           className="text-slate-600 hover:text-red-400 p-1 opacity-0 group-hover:opacity-100 transition-opacity"
+                        >
+                            <Trash2 size={16} />
+                        </button>
                     </div>
-                 </div>
-              </div>
 
-              {/* Removed Video Generation Result and Error Message as per user's request */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                        <div className="space-y-2">
+                            <div>
+                                <label className="text-[10px] text-slate-500 uppercase font-bold block mb-1">การกระทำ (Action)</label>
+                                <textarea 
+                                   value={scene.action}
+                                   onChange={e => updateScene(scene.id, 'action', e.target.value)}
+                                   className="w-full bg-slate-950 border border-slate-700 rounded p-2 text-xs text-slate-300 h-16 resize-none focus:border-emerald-500 outline-none"
+                                />
+                            </div>
+                            <div>
+                                <label className="text-[10px] text-slate-500 uppercase font-bold block mb-1">สถานที่ (Setting)</label>
+                                <input 
+                                   type="text"
+                                   value={scene.setting}
+                                   onChange={e => updateScene(scene.id, 'setting', e.target.value)}
+                                   className="w-full bg-slate-950 border border-slate-700 rounded p-2 text-xs text-slate-300 focus:border-emerald-500 outline-none"
+                                />
+                            </div>
+                        </div>
+                        <div className="space-y-2">
+                             <div>
+                                <label className="text-[10px] text-slate-500 uppercase font-bold block mb-1">บทพูด (Dialogue)</label>
+                                <textarea 
+                                   value={scene.dialogue}
+                                   onChange={e => updateScene(scene.id, 'dialogue', e.target.value)}
+                                   placeholder="(ไม่มีบทพูด)"
+                                   className="w-full bg-slate-950 border border-slate-700 rounded p-2 text-xs text-slate-300 h-16 resize-none focus:border-emerald-500 outline-none italic"
+                                />
+                            </div>
+                             <div>
+                                <label className="text-[10px] text-slate-500 uppercase font-bold block mb-1">องค์ประกอบเสริม (Environment)</label>
+                                <div className="flex flex-wrap gap-1">
+                                    {combinedEnvironmentElements.map(elem => (
+                                        <button
+                                           key={elem}
+                                           onClick={() => toggleEnvironmentElement(scene.id, elem)}
+                                           className={`text-[10px] px-2 py-0.5 rounded border transition-colors ${
+                                               scene.environmentElements?.includes(elem)
+                                               ? 'bg-emerald-900/30 border-emerald-500 text-emerald-300'
+                                               : 'bg-slate-950 border-slate-800 text-slate-500 hover:border-slate-600'
+                                           }`}
+                                        >
+                                            {cleanVal(elem)}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
 
-              <div className="flex items-center justify-between pt-4 border-t border-slate-800">
-                  <div className="text-xs text-slate-500">
-                     Len: {constructPrompt(scene).length} chars
-                  </div>
-                  <div className="flex gap-2 flex-wrap justify-end">
-                     <button
-                       onClick={() => navigator.clipboard.writeText(constructPrompt(scene))}
-                       className="px-3 py-1.5 text-slate-400 hover:text-white text-xs border border-slate-700 rounded hover:bg-slate-800 flex items-center gap-2"
-                     >
-                       <Copy size={14} /> Copy
-                     </button>
-                     
-                     <button
-                       onClick={() => onGenerateSceneVideo(constructPrompt(scene))} // Renamed prop
-                       className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold rounded flex items-center gap-2 border border-slate-700"
-                     >
-                       <MonitorPlay size={14} /> Web Launch
-                     </button>
-                  </div>
-              </div>
-            </div>
-          ))}
-        </div>
+                    <div className="flex justify-end pt-3 border-t border-slate-800">
+                         <div className="flex items-center gap-2 w-full">
+                            <div className="flex-1 bg-slate-950 p-2 rounded text-[10px] text-slate-500 font-mono truncate border border-slate-800">
+                                {constructPrompt(scene)}
+                            </div>
+                            <button
+                               onClick={() => navigator.clipboard.writeText(constructPrompt(scene))}
+                               className="p-2 bg-slate-800 text-slate-400 hover:text-white rounded hover:bg-slate-700 transition-colors"
+                               title="Copy Prompt"
+                            >
+                                <Copy size={14} />
+                            </button>
+                             <button
+                               onClick={() => onGenerateSceneVideo(constructPrompt(scene))}
+                               className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded flex items-center gap-2 shadow-lg shadow-emerald-900/20 whitespace-nowrap"
+                            >
+                                <MonitorPlay size={14} /> สร้างวิดีโอ (Veo)
+                            </button>
+                         </div>
+                    </div>
+                </div>
+             ))}
+          </div>
       </div>
+
     </div>
   );
 };

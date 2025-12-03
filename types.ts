@@ -33,7 +33,6 @@ export interface ApiKey {
 export interface CustomOption {
   id: string;
   value: string;
-  // Link to specific character attribute keys for better organization
   attributeKey: 'gender' | 'ageGroup' | 'skinTone' | 'faceShape' | 'eyeShape' | 'eyeColor' |
                 'hairStyle' | 'hairColor' | 'hairTexture' | 'facialFeatures' | 'bodyType' |
                 'clothingStyle' | 'clothingColor' | 'clothingDetail' | 'accessories' |
@@ -43,7 +42,7 @@ export interface CustomOption {
 
 // Character Studio Types
 export interface CharacterAttributes {
-  species: string; // New attribute
+  species: string;
   gender: string;
   ageGroup: string;
   skinTone: string;
@@ -53,13 +52,13 @@ export interface CharacterAttributes {
   hairStyle: string;
   hairColor: string;
   hairTexture: string;
-  facialFeatures: string[]; // Scars, freckles, etc.
+  facialFeatures: string[];
   bodyType: string;
   clothingStyle: string;
   clothingColor: string;
-  clothingDetail: string; // Detailed description
-  accessories: string[]; // Glasses, hats, jewelry
-  weapons: string[]; // Swords, wands (for fantasy)
+  clothingDetail: string;
+  accessories: string[];
+  weapons: string[];
   personality: string;
   currentMood: string;
 }
@@ -71,24 +70,24 @@ export interface Character {
   description: string;
   attributes: CharacterAttributes;
   seed: string;
-  visualDescriptionOverride?: string; // New field for detailed visual description
-  dialogueExample?: string; // New field for example dialogue lines
-  imageUrl?: string; // New field for character image URL
+  visualDescriptionOverride?: string;
+  dialogueExample?: string;
+  imageUrl?: string;
   createdAt: number;
 }
 
 // Storyboard Types
 export interface Scene {
   id: string;
-  characterId: string | 'none'; // ID of the character in this scene
-  action: string; // What is happening
-  setting: string; // Environment
-  dialogue?: string; // Optional speaking line - NEW
-  environmentElements?: string[]; // Specific objects/people in environment - NEW
-  shotType: string; // Camera angle
-  shotAngle?: string; // New field for camera angle
+  characterId: string | 'none';
+  action: string;
+  setting: string;
+  dialogue?: string;
+  environmentElements?: string[];
+  shotType: string;
+  shotAngle?: string;
   duration: '5s' | '8s';
-  generatedVideoUrl?: string; // URL of the generated video
+  generatedVideoUrl?: string;
   generationStatus?: 'idle' | 'generating' | 'completed' | 'error'; 
 }
 
@@ -106,15 +105,26 @@ export interface LoggedInUser {
   username: string;
 }
 
-// Define AIStudio interface to ensure consistent type declarations
 export interface AIStudio {
   hasSelectedApiKey: () => Promise<boolean>;
   openSelectKey: () => Promise<void>;
 }
 
-// Fix: Made 'aistudio' property optional to resolve potential duplicate declaration conflicts
-// with external type definitions, while adhering to guidelines that it will be present at runtime.
-// Removed 'declare global' to resolve "Subsequent property declarations" error when types are identical.
+// Production / Metadata Types
+export interface VideoMetadata {
+  title: string;
+  description: string;
+  hashtags: string[];
+}
+
+export type SocialPlatform = 'tiktok' | 'youtube' | 'instagram' | 'facebook';
+
+export interface SocialUploadConfig {
+  platform: SocialPlatform;
+  enabled: boolean;
+  privacy: 'public' | 'private' | 'unlisted';
+}
+
 interface Window {
-  aistudio?: AIStudio; // Declare aistudio property with the new interface
+  aistudio?: AIStudio;
 }

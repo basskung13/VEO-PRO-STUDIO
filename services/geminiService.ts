@@ -1,5 +1,7 @@
 
-import { PromptConfig, Scene, Character, AspectRatio } from "../types";
+
+
+import { PromptConfig, Scene, Character, AspectRatio, VideoMetadata } from "../types";
 import { GoogleGenAI, GenerateContentResponse, Type } from "@google/genai"; // Import GenerateContentResponse for type safety
 
 // Helper to construct the text prompt optimized for Gemini Web
@@ -298,4 +300,55 @@ export const generateCreativePrompt = async (concept: string, storyApiKey: strin
     console.error("Error from Gemini API (generateCreativePrompt):", error);
     throw new Error(`ไม่สามารถสร้างพรอมต์เชิงสร้างสรรค์ได้: ${error.message || 'ข้อผิดพลาด API ไม่ทราบสาเหตุ'}`);
   }
+};
+
+// --- Video Metadata Generation (For Production Tab) ---
+export const generateVideoMetadata = async (plot: string, scenes: Scene[], apiKey: string): Promise<VideoMetadata> => {
+    if (!apiKey) throw new Error("API Key required.");
+
+    const ai = new GoogleGenAI({ apiKey });
+    
+    // Construct a context summary from scenes
+    const scenesSummary = scenes.map((s, i) => `Scene ${i+1}: ${s.action} in ${s.setting}.`).join('\n');
+
+    const prompt = `Based on the following story plot and scene breakdown, generate metadata for a YouTube video upload.
+    
+    Plot: ${plot}
+    
+    Scenes:
+    ${scenesSummary}
+    
+    Return the result in JSON format with the following fields:
+    - title: A catchy, SEO-friendly title (max 60 chars).
+    - description: A compelling video description (max 300 chars).
+    - hashtags: An array of 5-10 relevant hashtags (strings).
+    `;
+
+    try {
+        const response = await ai.models.generateContent({
+            model: "gemini-2.5-flash",
+            contents: prompt,
+            config: {
+                responseMimeType: "application/json",
+                responseSchema: {
+                    type: Type.OBJECT,
+                    properties: {
+                        title: { type: Type.STRING },
+                        description: { type: Type.STRING },
+                        hashtags: { type: Type.ARRAY, items: { type: Type.STRING } }
+                    },
+                    required: ["title", "description", "hashtags"]
+                }
+            }
+        });
+        
+        const text = response.text;
+        if (!text) throw new Error("No response text.");
+        
+        return JSON.parse(text) as VideoMetadata;
+
+    } catch (e: any) {
+        console.error("Metadata Gen Error:", e);
+        throw new Error("Failed to generate metadata.");
+    }
 };
