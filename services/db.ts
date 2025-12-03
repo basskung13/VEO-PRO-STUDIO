@@ -44,9 +44,7 @@ export const deleteProjectDb = async (projectId: string) => {
 // --- CHARACTERS ---
 export const fetchCharacters = async (userId: string): Promise<Character[]> => {
     if (isDemo) return getLocal('veo_characters');
-    const q = query(collection(db, 'characters'), where('userId', '==', userId)); // Assume char has userId for this architecture
-    // Note: If Character type doesn't have userId, we might store them in a subcollection 'users/{uid}/characters'
-    // For simplicity of this transition, let's assume we filter by a field or use the subcollection pattern:
+    // Using a subcollection 'characters' under 'users' ensures privacy and better organization
     const userCharRef = collection(db, 'users', userId, 'characters');
     const snapshot = await getDocs(userCharRef);
     return snapshot.docs.map(d => ({ id: d.id, ...d.data() } as Character));

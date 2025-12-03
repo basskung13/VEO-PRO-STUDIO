@@ -186,7 +186,7 @@ const AdminPanel: React.FC = () => {
                                 <select 
                                     value={newType}
                                     onChange={e => setNewType(e.target.value as any)}
-                                    className="w-full bg-slate-950 border border-slate-800 rounded p-2 text-white outline-none"
+                                    className="w-full bg-slate-900 border border-slate-800 rounded p-2 text-white outline-none"
                                 >
                                     <option value="info">Info (Blue)</option>
                                     <option value="warning">Warning (Yellow)</option>
