@@ -203,7 +203,7 @@ const ProjectDashboard: React.FC<ProjectDashboardProps> = ({ projects, onCreateP
                         value={newProjectName}
                         onChange={e => setNewProjectName(e.target.value)}
                         placeholder="e.g. Alien Coffee Shop"
-                        className="w-full bg-slate-950 border border-slate-700 rounded-lg p-3 text-white outline-none focus:border-emerald-500"
+                        className="w-full bg-slate-900 border border-slate-700 rounded-lg p-3 text-white outline-none focus:border-emerald-500"
                       />
                     </div>
                     <div>
@@ -220,7 +220,7 @@ const ProjectDashboard: React.FC<ProjectDashboardProps> = ({ projects, onCreateP
                       <select 
                         value={newProjectCategory}
                         onChange={e => setNewProjectCategory(e.target.value)}
-                        className="w-full bg-slate-950 border border-slate-700 rounded-lg p-3 text-white outline-none focus:border-emerald-500 appearance-none"
+                        className="w-full bg-slate-900 border border-slate-700 rounded-lg p-3 text-white outline-none focus:border-emerald-500 appearance-none"
                       >
                           {categories.map(c => <option key={c} value={c}>{c}</option>)}
                       </select>

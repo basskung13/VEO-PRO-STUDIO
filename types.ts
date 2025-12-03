@@ -1,4 +1,5 @@
 
+
 export interface HistoryItem {
   id: string;
   originalPrompt: string;
@@ -101,8 +102,32 @@ export interface PromptBuilderState {
   concept: string;
 }
 
+// --- UPDATED USER TYPES FOR FIREBASE ---
+export interface AppUser {
+  uid: string;
+  email: string;
+  displayName?: string;
+  photoURL?: string;
+  role: 'user' | 'admin';
+  subscriptionStatus: 'active' | 'inactive' | 'pending';
+  subscriptionExpiresAt?: number;
+  isBanned?: boolean;
+}
+
 export interface LoggedInUser {
-  username: string;
+  username: string; // Keep for compatibility, mapped from email/displayName
+  uid: string;
+  role: 'user' | 'admin';
+}
+
+export interface Announcement {
+  id: string;
+  title: string;
+  content: string;
+  type: 'info' | 'warning' | 'success' | 'alert';
+  createdAt: number;
+  createdBy: string;
+  isActive: boolean;
 }
 
 export interface AIStudio {
@@ -144,6 +169,7 @@ export interface Project {
   category: string; // e.g. 'Short Film', 'Music Video', 'Vlog'
   createdAt: number;
   updatedAt: number;
+  userId: string; // Owner
   
   // Content State
   plot: string;
