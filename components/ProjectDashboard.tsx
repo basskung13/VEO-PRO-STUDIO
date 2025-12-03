@@ -127,19 +127,14 @@ const ProjectDashboard: React.FC<ProjectDashboardProps> = ({ projects, onCreateP
     }
   };
 
-  const handleDeleteCategory = (catToDelete: string, e: React.MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-
-    if (window.confirm(`ต้องการลบหมวดหมู่ "${catToDelete}" ใช่หรือไม่?`)) {
-      // Filter out the category to delete
-      const updatedCategories = categories.filter(c => c !== catToDelete);
-      setCategories(updatedCategories);
-      
-      // If the currently selected category is the one being deleted, switch to a valid one
-      if (newProjectCategory === catToDelete) {
-        setNewProjectCategory(updatedCategories.length > 0 ? updatedCategories[0] : 'General (ทั่วไป)');
-      }
+  const handleDeleteCategory = (catToDelete: string) => {
+    // Removed window.confirm to ensure direct interaction without browser blocking
+    const updatedCategories = categories.filter(c => c !== catToDelete);
+    setCategories(updatedCategories);
+    
+    // If the currently selected category is the one being deleted, switch to a valid one
+    if (newProjectCategory === catToDelete) {
+      setNewProjectCategory(updatedCategories.length > 0 ? updatedCategories[0] : 'General (ทั่วไป)');
     }
   };
 
@@ -264,10 +259,14 @@ const ProjectDashboard: React.FC<ProjectDashboardProps> = ({ projects, onCreateP
                                     <span>{cat}</span>
                                     <button 
                                         type="button"
-                                        onClick={(e) => handleDeleteCategory(cat, e)}
-                                        className="ml-1 text-slate-600 hover:text-red-400 p-0.5 rounded-full hover:bg-red-900/20 transition-colors cursor-pointer"
+                                        onClick={(e) => {
+                                            e.preventDefault();
+                                            e.stopPropagation();
+                                            handleDeleteCategory(cat);
+                                        }}
+                                        className="ml-1 text-slate-500 hover:text-red-400 p-1 rounded-full hover:bg-red-900/20 transition-colors cursor-pointer flex-shrink-0"
                                     >
-                                        <X size={12} />
+                                        <X size={14} />
                                     </button>
                                 </div>
                             ))}
