@@ -13,11 +13,19 @@ const setLocal = (key: string, data: any) => localStorage.setItem(key, JSON.stri
 export const fetchProjects = async (userId: string): Promise<Project[]> => {
     if (isDemo) {
         const projects = getLocal('veo_projects');
-        return projects; // Return all in demo
+        // In demo mode, we simulate the sort locally
+        return projects.sort((a: Project, b: Project) => b.updatedAt - a.updatedAt);
     }
-    const q = query(collection(db, 'projects'), where('userId', '==', userId));
+    
+    // Real DB: Optimized query using Composite Index (userId ASC, updatedAt DESC)
+    const q = query(
+        collection(db, 'projects'), 
+        where('userId', '==', userId),
+        orderBy('updatedAt', 'desc')
+    );
+    
     const snapshot = await getDocs(q);
-    return snapshot.docs.map(d => ({ id: d.id, ...d.data() } as Project)).sort((a,b) => b.updatedAt - a.updatedAt);
+    return snapshot.docs.map(d => ({ id: d.id, ...d.data() } as Project));
 };
 
 export const saveProject = async (project: Project) => {
