@@ -1,17 +1,16 @@
 
 import React, { useState } from 'react';
-import { VideoMetadata, ApiKey, SocialPlatform } from '../types';
+import { Project, ApiKey, SocialPlatform } from '../types';
 import { uploadToSocialPlatform } from '../services/uploadPostService';
 import { Share2, Youtube, Facebook, Instagram, Music2, Globe, Lock, EyeOff, Send, Loader2, CheckCircle2, AlertTriangle, ExternalLink } from 'lucide-react';
 
 interface SocialUploadProps {
-  metadata: VideoMetadata | null;
+  project: Project;
   activeUploadPostApiKey: ApiKey | null;
   onOpenApiKeyManager: () => void;
 }
 
-const SocialUpload: React.FC<SocialUploadProps> = ({ metadata, activeUploadPostApiKey, onOpenApiKeyManager }) => {
-  // Local state for toggles and privacy
+const SocialUpload: React.FC<SocialUploadProps> = ({ project, activeUploadPostApiKey, onOpenApiKeyManager }) => {
   const [platforms, setPlatforms] = useState<Record<SocialPlatform, boolean>>({
     tiktok: true,
     youtube: true,
@@ -26,7 +25,6 @@ const SocialUpload: React.FC<SocialUploadProps> = ({ metadata, activeUploadPostA
     facebook: 'public'
   });
 
-  // Upload States
   const [uploadStatus, setUploadStatus] = useState<Record<SocialPlatform, { status: 'idle' | 'uploading' | 'success' | 'error', progress: number, message?: string }>>({
     tiktok: { status: 'idle', progress: 0 },
     youtube: { status: 'idle', progress: 0 },
@@ -35,9 +33,9 @@ const SocialUpload: React.FC<SocialUploadProps> = ({ metadata, activeUploadPostA
   });
 
   const togglePlatform = (p: SocialPlatform) => setPlatforms(prev => ({ ...prev, [p]: !prev[p] }));
-  
-  const handlePrivacyChange = (p: SocialPlatform, val: string) => 
-    setPrivacy(prev => ({ ...prev, [p]: val as any }));
+  const handlePrivacyChange = (p: SocialPlatform, val: string) => setPrivacy(prev => ({ ...prev, [p]: val as any }));
+
+  const metadata = project.metadata;
 
   const handleLaunchDistribution = async () => {
     if (!activeUploadPostApiKey?.key) {
@@ -45,26 +43,21 @@ const SocialUpload: React.FC<SocialUploadProps> = ({ metadata, activeUploadPostA
       alert("กรุณาตั้งค่า API Key (Upload-Post Key) ในเมนู Settings ก่อนเริ่มการอัปโหลด");
       return;
     }
-
     if (!metadata) {
       alert("ไม่พบข้อมูล Metadata กรุณากลับไปสร้างในหน้า Production ก่อน");
       return;
     }
 
-    // Filter enabled platforms
     const targetPlatforms = (Object.keys(platforms) as SocialPlatform[]).filter(p => platforms[p]);
-
     if (targetPlatforms.length === 0) {
       alert("กรุณาเลือกแพลตฟอร์มอย่างน้อย 1 ช่องทาง");
       return;
     }
 
-    // Reset statuses
     targetPlatforms.forEach(p => {
        setUploadStatus(prev => ({ ...prev, [p]: { status: 'uploading', progress: 0 } }));
     });
 
-    // Launch uploads in parallel (mocked)
     targetPlatforms.forEach(async (p) => {
       try {
         await uploadToSocialPlatform(p, metadata, activeUploadPostApiKey.key, (progress) => {
@@ -101,7 +94,7 @@ const SocialUpload: React.FC<SocialUploadProps> = ({ metadata, activeUploadPostA
         <div className="bg-slate-900 border border-slate-700 rounded-2xl p-6 shadow-xl flex justify-between items-center">
              <div>
                 <h2 className="text-2xl font-bold text-white flex items-center gap-3">
-                    <Share2 className="text-emerald-500" /> Social Distribution Center
+                    <Share2 className="text-emerald-500" /> Social Distribution: {project.name}
                 </h2>
                 <p className="text-slate-400 text-sm mt-1">
                     Powered by <span className="text-orange-400 font-bold">Upload-Post.com</span>
@@ -169,7 +162,6 @@ const SocialUpload: React.FC<SocialUploadProps> = ({ metadata, activeUploadPostA
                                         </button>
                                     </div>
                                     
-                                    {/* Upload Progress Bar */}
                                     {uploadStatus[platform].status !== 'idle' && (
                                         <div className="mt-2 bg-slate-900 rounded-full h-2 overflow-hidden relative">
                                             <div 
@@ -206,9 +198,6 @@ const SocialUpload: React.FC<SocialUploadProps> = ({ metadata, activeUploadPostA
                     >
                         <Send size={24} /> Launch Distribution
                     </button>
-                    <p className="text-center text-[10px] text-slate-500 mt-2">
-                        By clicking Launch, you agree to upload content to selected platforms according to their ToS.
-                    </p>
                 </div>
             </div>
         </div>

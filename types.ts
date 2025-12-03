@@ -125,6 +125,42 @@ export interface SocialUploadConfig {
   privacy: 'public' | 'private' | 'unlisted';
 }
 
+// --- PROJECT MANAGEMENT TYPES ---
+
+export interface ProjectSettings {
+  aspectRatio: AspectRatio;
+  weather: string;
+  atmosphere: string;
+  lighting: string;
+  intensity: number;
+  dialect: string;
+  tone: string;
+  style: string;
+}
+
+export interface Project {
+  id: string;
+  name: string;
+  category: string; // e.g. 'Short Film', 'Music Video', 'Vlog'
+  createdAt: number;
+  updatedAt: number;
+  
+  // Content State
+  plot: string;
+  scenes: Scene[];
+  
+  // Settings & Style
+  settings: ProjectSettings;
+  
+  // Assets
+  selectedCharacterIds: string[];
+  maxCharactersPerScene: number;
+  numberOfScenes: number;
+
+  // Output
+  metadata: VideoMetadata | null;
+}
+
 interface Window {
   aistudio?: AIStudio;
 }

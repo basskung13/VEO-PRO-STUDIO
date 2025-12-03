@@ -7,15 +7,12 @@ import PromptBuilder from './components/PromptBuilder';
 import CharacterStudio from './components/CharacterStudio';
 import Production from './components/Production';
 import SocialUpload from './components/SocialUpload';
+import ProjectDashboard from './components/ProjectDashboard';
 import LoginScreen from './components/LoginScreen';
 import SignupScreen from './components/SignupScreen';
 import { constructVeoPrompt, openGeminiWeb } from './services/geminiService';
-import { HistoryItem, AspectRatio, AccountUsage, UserProfile, ApiKey, CustomOption, Character, LoggedInUser, Scene, VideoMetadata } from './types';
-import { Sparkles, Video, User, Settings, AlertTriangle, Loader2, Clapperboard, Share2 } from 'lucide-react';
-
-const STYLES = [
-  'Cinematic', 'Photorealistic', 'Anime', 'Cyberpunk', '3D Render', 'Vintage', 'Noir', 'Watercolor'
-];
+import { HistoryItem, AspectRatio, AccountUsage, UserProfile, ApiKey, CustomOption, Character, LoggedInUser, Scene, VideoMetadata, Project } from './types';
+import { Sparkles, Video, User, Settings, AlertTriangle, Loader2, Clapperboard, Share2, LayoutGrid, ChevronRight } from 'lucide-react';
 
 // Default data for custom options
 const DEFAULT_CUSTOM_OPTIONS_DATA: CustomOption[] = [
@@ -33,10 +30,10 @@ const DEFAULT_CUSTOM_OPTIONS_DATA: CustomOption[] = [
   { id: 'opt-det2', value: 'High Fantasy World', attributeKey: 'storyDetail' }
 ];
 
-type View = 'generator' | 'characters' | 'settings' | 'production' | 'upload';
+type View = 'dashboard' | 'generator' | 'characters' | 'settings' | 'production' | 'upload';
 
 const App: React.FC = () => {
-  const [currentView, setCurrentView] = useState<View>('settings');
+  const [currentView, setCurrentView] = useState<View>('dashboard');
   
   // --- Authentication State ---
   const [loggedInUser, setLoggedInUser] = useState<LoggedInUser | null>(null);
@@ -57,20 +54,14 @@ const App: React.FC = () => {
   const [activeFalApiKeyId, setActiveFalApiKeyId] = useState<string | null>(null);
   const [activeUploadPostApiKeyId, setActiveUploadPostApiKeyId] = useState<string | null>(null);
 
-  // Characters & Storyboard
+  // Global Data
   const [characters, setCharacters] = useState<Character[]>([]);
-  const [selectedCharactersForStoryboard, setSelectedCharactersForStoryboard] = useState<string[]>([]);
-  const [maxCharactersPerScene, setMaxCharactersPerScene] = useState<number>(1);
-  const [numberOfScenes, setNumberOfScenes] = useState<number>(3);
-  
-  // Lifted State: Plot and Scenes
-  const [plot, setPlot] = useState<string>('');
-  const [scenes, setScenes] = useState<Scene[]>([]);
-  // Lifted State: Metadata for Production -> Upload
-  const [videoMetadata, setVideoMetadata] = useState<VideoMetadata | null>(null);
-
   const [customOptions, setCustomOptions] = useState<CustomOption[]>([]);
   const MAX_DAILY_COUNT = 2; 
+
+  // --- PROJECT MANAGEMENT STATE ---
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [activeProjectId, setActiveProjectId] = useState<string | null>(null);
 
   const [history, setHistory] = useState<HistoryItem[]>([]);
 
@@ -88,11 +79,8 @@ const App: React.FC = () => {
       const savedCharacters = localStorage.getItem('veo_characters');
       const savedLoggedInUser = localStorage.getItem('veo_logged_in_user');
       const savedCustomOptions = localStorage.getItem('veo_custom_options');
-      const savedSelectedChars = localStorage.getItem('veo_selected_story_chars');
-      const savedMaxCharsPerScene = localStorage.getItem('veo_max_chars_per_scene');
-      const savedNumScenes = localStorage.getItem('veo_num_scenes');
-      const savedPlot = localStorage.getItem('veo_current_plot');
-      const savedScenes = localStorage.getItem('veo_current_scenes');
+      const savedProjects = localStorage.getItem('veo_projects');
+      const savedActiveProjectId = localStorage.getItem('veo_active_project_id');
       
       if (savedUsage) setAccountUsage(JSON.parse(savedUsage));
       if (savedProfiles) setUserProfiles(JSON.parse(savedProfiles));
@@ -103,11 +91,8 @@ const App: React.FC = () => {
       if (savedActiveFalKeyId) setActiveFalApiKeyId(savedActiveFalKeyId);
       if (savedActiveUploadPostKeyId) setActiveUploadPostApiKeyId(savedActiveUploadPostKeyId);
       if (savedCharacters) setCharacters(JSON.parse(savedCharacters));
-      if (savedSelectedChars) setSelectedCharactersForStoryboard(JSON.parse(savedSelectedChars));
-      if (savedMaxCharsPerScene) setMaxCharactersPerScene(parseInt(savedMaxCharsPerScene, 10));
-      if (savedNumScenes) setNumberOfScenes(parseInt(savedNumScenes, 10));
-      if (savedPlot) setPlot(savedPlot);
-      if (savedScenes) setScenes(JSON.parse(savedScenes));
+      if (savedProjects) setProjects(JSON.parse(savedProjects));
+      if (savedActiveProjectId) setActiveProjectId(savedActiveProjectId);
 
       if (savedCustomOptions) {
         try {
@@ -148,12 +133,55 @@ const App: React.FC = () => {
   useEffect(() => { if(activeUploadPostApiKeyId) localStorage.setItem('veo_active_upload_post_key_id', activeUploadPostApiKeyId); }, [activeUploadPostApiKeyId]);
   useEffect(() => { localStorage.setItem('veo_characters', JSON.stringify(characters)); }, [characters]);
   useEffect(() => { localStorage.setItem('veo_custom_options', JSON.stringify(customOptions)); }, [customOptions]);
-  useEffect(() => { localStorage.setItem('veo_selected_story_chars', JSON.stringify(selectedCharactersForStoryboard)); }, [selectedCharactersForStoryboard]);
-  useEffect(() => { localStorage.setItem('veo_max_chars_per_scene', maxCharactersPerScene.toString()); }, [maxCharactersPerScene]);
-  useEffect(() => { localStorage.setItem('veo_num_scenes', numberOfScenes.toString()); }, [numberOfScenes]);
-  useEffect(() => { localStorage.setItem('veo_current_plot', plot); }, [plot]);
-  useEffect(() => { localStorage.setItem('veo_current_scenes', JSON.stringify(scenes)); }, [scenes]);
+  useEffect(() => { localStorage.setItem('veo_projects', JSON.stringify(projects)); }, [projects]);
+  useEffect(() => { if(activeProjectId) localStorage.setItem('veo_active_project_id', activeProjectId); else localStorage.removeItem('veo_active_project_id'); }, [activeProjectId]);
   useEffect(() => { if (loggedInUser) localStorage.setItem('veo_logged_in_user', JSON.stringify(loggedInUser)); else localStorage.removeItem('veo_logged_in_user'); }, [loggedInUser]);
+
+
+  // Project Management Functions
+  const createNewProject = (name: string, category: string) => {
+    const newProject: Project = {
+      id: Date.now().toString(),
+      name,
+      category,
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+      plot: '',
+      scenes: [],
+      settings: {
+        weather: 'Sunny (แดดจัด)',
+        atmosphere: 'Cinematic (ภาพยนตร์)',
+        lighting: 'Natural (ธรรมชาติ)',
+        intensity: 30,
+        dialect: 'TH ไทยกลาง',
+        tone: 'Serious/Dramatic (จริงจัง/ดราม่า)',
+        style: 'Cinematic Movie (ภาพยนตร์)',
+        aspectRatio: '16:9'
+      },
+      selectedCharacterIds: [],
+      maxCharactersPerScene: 1,
+      numberOfScenes: 3,
+      metadata: null
+    };
+    setProjects(prev => [newProject, ...prev]);
+    setActiveProjectId(newProject.id);
+    setCurrentView('generator');
+  };
+
+  const updateActiveProject = (updates: Partial<Project>) => {
+    if (!activeProjectId) return;
+    setProjects(prev => prev.map(p => p.id === activeProjectId ? { ...p, ...updates } : p));
+  };
+
+  const deleteProject = (id: string) => {
+    setProjects(prev => prev.filter(p => p.id !== id));
+    if (activeProjectId === id) {
+      setActiveProjectId(null);
+      setCurrentView('dashboard');
+    }
+  };
+
+  const activeProject = projects.find(p => p.id === activeProjectId) || null;
 
   const addToHistory = (original: string, final: string) => {
      const newItem: HistoryItem = {
@@ -187,7 +215,7 @@ const App: React.FC = () => {
       const nextAccountIndex = availableAccounts[randomIndex];
       setCurrentAccountIndex(nextAccountIndex);
       setAccountUsage(prev => ({ ...prev, [nextAccountIndex]: (prev[nextAccountIndex] || 0) + 1 }));
-      const config = { prompt: prompt, aspectRatio: '16:9' as AspectRatio };
+      const config = { prompt: prompt, aspectRatio: activeProject?.settings.aspectRatio || '16:9' };
       const finalPrompt = constructVeoPrompt(config);
       openGeminiWeb(nextAccountIndex); 
       addToHistory(prompt, finalPrompt);
@@ -205,17 +233,14 @@ const App: React.FC = () => {
   const handleSignup = (username: string, password: string) => { if (username && password) { setLoggedInUser({ username }); setShowAuthScreen('none'); } else { alert("กรุณาใส่ชื่อผู้ใช้และรหัสผ่าน"); } };
   const handleLogout = () => { setLoggedInUser(null); setShowAuthScreen('login'); };
 
-  const updateScene = (id: string, updates: Partial<Scene>) => {
-    setScenes(prev => prev.map(s => s.id === id ? { ...s, ...updates } : s));
-  };
 
   if (!isAuthCheckComplete) return <div className="min-h-screen bg-slate-950 flex items-center justify-center font-sans"><Loader2 size={48} className="animate-spin mb-4" /></div>;
   if (!loggedInUser) return <div className="min-h-screen bg-slate-950 flex items-center justify-center font-sans">{showAuthScreen === 'login' ? <LoginScreen onLogin={handleLogin} onSwitchToSignup={() => setShowAuthScreen('signup')} /> : <SignupScreen onSignup={handleSignup} onSwitchToLogin={() => setShowAuthScreen('login')} />}</div>;
 
   return (
     <div className="min-h-screen bg-slate-950 pb-20 font-sans">
-      {currentView === 'generator' && (
-        <AccountBar 
+      {/* Top Bar for Account Management */}
+      <AccountBar 
           currentAccountIndex={currentAccountIndex}
           activeSlotCount={activeSlotCount}
           usageMap={accountUsage}
@@ -227,32 +252,66 @@ const App: React.FC = () => {
           onOpenSettings={() => setCurrentView('settings')}
           loggedInUser={loggedInUser}
           onLogout={handleLogout}
-        />
-      )}
+      />
 
-      {/* Main Navigation */}
-      <nav className={`container mx-auto px-4 ${currentView === 'generator' ? 'mt-6' : 'mt-8'} flex justify-center`}>
+      {/* Main Navigation - Shows breadcrumbs if in a project */}
+      <nav className="container mx-auto px-4 mt-6 flex flex-col md:flex-row items-center justify-between gap-4">
+          <div className="flex items-center gap-2">
+            <button 
+              onClick={() => {
+                setActiveProjectId(null);
+                setCurrentView('dashboard');
+              }}
+              className="text-slate-400 hover:text-white flex items-center gap-1 font-bold text-sm"
+            >
+              <LayoutGrid size={16}/> Dashboard
+            </button>
+            {activeProject && (
+              <>
+                <ChevronRight size={16} className="text-slate-600"/>
+                <span className="text-emerald-400 font-bold text-sm flex items-center gap-2">
+                   <Video size={16}/> {activeProject.name}
+                </span>
+              </>
+            )}
+          </div>
+
           <div className="bg-slate-900 border border-slate-800 p-1 rounded-xl flex gap-1 shadow-lg overflow-x-auto">
              <button onClick={() => setCurrentView('settings')} className={`px-4 lg:px-6 py-2 rounded-lg text-sm font-bold flex items-center gap-2 transition-all whitespace-nowrap ${currentView === 'settings' ? 'bg-emerald-600 text-white shadow' : 'text-slate-400 hover:text-white hover:bg-slate-800'}`}>
                 <Settings size={16} /> <span className="hidden sm:inline">Settings</span>
              </button>
-             <button onClick={() => setCurrentView('characters')} className={`px-4 lg:px-6 py-2 rounded-lg text-sm font-bold flex items-center gap-2 transition-all whitespace-nowrap ${currentView === 'characters' ? 'bg-emerald-600 text-white shadow' : 'text-slate-400 hover:text-white hover:bg-slate-800'}`}>
-                <User size={16} /> <span className="hidden sm:inline">Characters</span>
-             </button>
-             <button onClick={() => setCurrentView('generator')} className={`px-4 lg:px-6 py-2 rounded-lg text-sm font-bold flex items-center gap-2 transition-all whitespace-nowrap ${currentView === 'generator' ? 'bg-emerald-600 text-white shadow' : 'text-slate-400 hover:text-white hover:bg-slate-800'}`}>
-                <Video size={16} /> <span className="hidden sm:inline">Storyboard</span>
-             </button>
-             <button onClick={() => setCurrentView('production')} className={`px-4 lg:px-6 py-2 rounded-lg text-sm font-bold flex items-center gap-2 transition-all whitespace-nowrap ${currentView === 'production' ? 'bg-emerald-600 text-white shadow' : 'text-slate-400 hover:text-white hover:bg-slate-800'}`}>
-                <Clapperboard size={16} /> <span className="hidden sm:inline">Production</span>
-             </button>
-             <button onClick={() => setCurrentView('upload')} className={`px-4 lg:px-6 py-2 rounded-lg text-sm font-bold flex items-center gap-2 transition-all whitespace-nowrap ${currentView === 'upload' ? 'bg-emerald-600 text-white shadow' : 'text-slate-400 hover:text-white hover:bg-slate-800'}`}>
-                <Share2 size={16} /> <span className="hidden sm:inline">Distribution</span>
-             </button>
+             {activeProject && (
+              <>
+                 <button onClick={() => setCurrentView('characters')} className={`px-4 lg:px-6 py-2 rounded-lg text-sm font-bold flex items-center gap-2 transition-all whitespace-nowrap ${currentView === 'characters' ? 'bg-emerald-600 text-white shadow' : 'text-slate-400 hover:text-white hover:bg-slate-800'}`}>
+                    <User size={16} /> <span className="hidden sm:inline">Characters</span>
+                 </button>
+                 <button onClick={() => setCurrentView('generator')} className={`px-4 lg:px-6 py-2 rounded-lg text-sm font-bold flex items-center gap-2 transition-all whitespace-nowrap ${currentView === 'generator' ? 'bg-emerald-600 text-white shadow' : 'text-slate-400 hover:text-white hover:bg-slate-800'}`}>
+                    <Video size={16} /> <span className="hidden sm:inline">Storyboard</span>
+                 </button>
+                 <button onClick={() => setCurrentView('production')} className={`px-4 lg:px-6 py-2 rounded-lg text-sm font-bold flex items-center gap-2 transition-all whitespace-nowrap ${currentView === 'production' ? 'bg-emerald-600 text-white shadow' : 'text-slate-400 hover:text-white hover:bg-slate-800'}`}>
+                    <Clapperboard size={16} /> <span className="hidden sm:inline">Production</span>
+                 </button>
+                 <button onClick={() => setCurrentView('upload')} className={`px-4 lg:px-6 py-2 rounded-lg text-sm font-bold flex items-center gap-2 transition-all whitespace-nowrap ${currentView === 'upload' ? 'bg-emerald-600 text-white shadow' : 'text-slate-400 hover:text-white hover:bg-slate-800'}`}>
+                    <Share2 size={16} /> <span className="hidden sm:inline">Distribution</span>
+                 </button>
+              </>
+             )}
           </div>
       </nav>
 
       <main className="container mx-auto px-4 pt-6 flex flex-col items-center">
-        {currentView === 'settings' ? (
+        {/* VIEW ROUTING */}
+        {!activeProject && currentView !== 'settings' ? (
+          <ProjectDashboard 
+            projects={projects}
+            onCreateProject={createNewProject}
+            onSelectProject={(id) => {
+              setActiveProjectId(id);
+              setCurrentView('generator');
+            }}
+            onDeleteProject={deleteProject}
+          />
+        ) : currentView === 'settings' ? (
           <GlobalSettings
             userProfiles={userProfiles}
             onUpdateProfile={updateProfile}
@@ -276,7 +335,7 @@ const App: React.FC = () => {
             onSelectFalKey={setActiveFalApiKeyId}
             onSelectUploadPostKey={setActiveUploadPostApiKeyId}
           />
-        ) : currentView === 'characters' ? (
+        ) : currentView === 'characters' && activeProject ? (
              <div className="w-full max-w-6xl">
                  <CharacterStudio 
                     characters={characters}
@@ -296,29 +355,26 @@ const App: React.FC = () => {
                     onOpenApiKeyManager={() => setCurrentView('settings')}
                  />
              </div>
-        ) : currentView === 'production' ? (
+        ) : currentView === 'production' && activeProject ? (
             <div className="w-full max-w-7xl">
                 <Production 
-                   scenes={scenes}
-                   plot={plot}
-                   onUpdateScene={updateScene}
+                   project={activeProject}
+                   onUpdateProject={updateActiveProject}
                    activeStoryApiKey={activeStoryApiKeyObj}
                    activeFalApiKey={activeFalApiKeyObj}
                    onOpenApiKeyManager={() => setCurrentView('settings')}
-                   metadata={videoMetadata}
-                   onUpdateMetadata={setVideoMetadata}
                    onProceedToUpload={() => setCurrentView('upload')}
                 />
             </div>
-        ) : currentView === 'upload' ? (
+        ) : currentView === 'upload' && activeProject ? (
           <div className="w-full max-w-7xl">
               <SocialUpload 
-                 metadata={videoMetadata}
+                 project={activeProject}
                  activeUploadPostApiKey={activeUploadPostApiKeyObj}
                  onOpenApiKeyManager={() => setCurrentView('settings')}
               />
           </div>
-        ) : (
+        ) : activeProject ? (
             <>
                 <div className="w-full max-w-7xl bg-slate-900/80 border border-slate-800 rounded-2xl p-6 backdrop-blur-md shadow-2xl relative overflow-hidden transition-all duration-300 animate-fade-in">
                 {(accountUsage[currentAccountIndex] || 0) >= MAX_DAILY_COUNT && (
@@ -327,25 +383,17 @@ const App: React.FC = () => {
                     </div>
                 )}
                 <div className="flex justify-between items-center mb-6 relative z-10">
-                    <h2 className="text-2xl font-bold text-white flex items-center gap-3"><Sparkles className="text-emerald-500" /> Veo Storyboard Pro</h2>
+                    <h2 className="text-2xl font-bold text-white flex items-center gap-3"><Sparkles className="text-emerald-500" /> Veo Storyboard Pro: {activeProject.name}</h2>
                 </div>
                 <div className="relative z-10">
                     <PromptBuilder 
-                        plot={plot} 
-                        setPlot={setPlot}
-                        scenes={scenes}
-                        setScenes={setScenes}
+                        project={activeProject}
+                        onUpdateProject={updateActiveProject}
                         characters={characters}
                         activeStoryApiKey={activeStoryApiKeyObj}
                         onOpenApiKeyManager={() => setCurrentView('settings')}
                         onGenerateSceneVideo={handleGenerateSceneVideo}
                         onNavigateToCharacterStudio={() => setCurrentView('characters')}
-                        selectedCharactersForStoryboard={selectedCharactersForStoryboard}
-                        onSelectCharactersForStoryboard={setSelectedCharactersForStoryboard}
-                        maxCharactersPerScene={maxCharactersPerScene}
-                        onSetMaxCharactersPerScene={setMaxCharactersPerScene}
-                        numberOfScenes={numberOfScenes}
-                        onSetNumberOfScenes={setNumberOfScenes}
                         customOptions={customOptions}
                         onAddCustomOption={handleAddCustomOption}
                         onRemoveCustomOption={handleRemoveCustomOption}
@@ -354,7 +402,7 @@ const App: React.FC = () => {
                 </div>
                 <VideoHistory items={history} onCopy={handleCopyOnly} />
             </>
-        )}
+        ) : null}
       </main>
     </div>
   );

@@ -1,37 +1,34 @@
 
-
 import React, { useState } from 'react';
-import { Scene, VideoMetadata, ApiKey } from '../types';
+import { Project, ApiKey } from '../types';
 import { generateVideoMetadata } from '../services/geminiService';
 import { Play, Download, Wand2, Hash, Type, FileText, Layers, Film, Loader2, AlertCircle, Save, Share2, Check } from 'lucide-react';
 
 interface ProductionProps {
-  scenes: Scene[];
-  plot: string;
-  onUpdateScene: (id: string, updates: Partial<Scene>) => void;
+  project: Project;
+  onUpdateProject: (updates: Partial<Project>) => void;
   activeStoryApiKey: ApiKey | null;
   activeFalApiKey: ApiKey | null;
   onOpenApiKeyManager: () => void;
-  metadata: VideoMetadata | null;
-  onUpdateMetadata: (meta: VideoMetadata) => void;
   onProceedToUpload: () => void;
 }
 
 const Production: React.FC<ProductionProps> = ({ 
-  scenes, 
-  plot, 
-  onUpdateScene, 
+  project,
+  onUpdateProject,
   activeStoryApiKey, 
   activeFalApiKey,
   onOpenApiKeyManager,
-  metadata,
-  onUpdateMetadata,
   onProceedToUpload
 }) => {
   const [isGeneratingMetadata, setIsGeneratingMetadata] = useState(false);
   const [isCombining, setIsCombining] = useState(false);
   const [combineStatus, setCombineStatus] = useState<string | null>(null);
   const [videoReady, setVideoReady] = useState(false);
+
+  const scenes = project.scenes;
+  const plot = project.plot;
+  const metadata = project.metadata;
 
   const handleGenerateMetadata = async () => {
     if (!activeStoryApiKey?.key) {
@@ -47,12 +44,20 @@ const Production: React.FC<ProductionProps> = ({
     setIsGeneratingMetadata(true);
     try {
       const result = await generateVideoMetadata(plot, scenes, activeStoryApiKey.key);
-      onUpdateMetadata(result);
+      onUpdateProject({ metadata: result, updatedAt: Date.now() });
     } catch (e: any) {
       alert("เกิดข้อผิดพลาดในการสร้าง Metadata: " + e.message);
     } finally {
       setIsGeneratingMetadata(false);
     }
+  };
+
+  const updateMetadata = (key: keyof typeof metadata, value: any) => {
+      if(!metadata) return;
+      onUpdateProject({ 
+          metadata: { ...metadata, [key]: value },
+          updatedAt: Date.now()
+      });
   };
 
   const handleCombineVideos = async () => {
@@ -65,7 +70,6 @@ const Production: React.FC<ProductionProps> = ({
     setIsCombining(true);
     setCombineStatus("กำลังเตรียมไฟล์วิดีโอ...");
     
-    // Simulate Fal AI process
     setTimeout(() => {
         setCombineStatus("กำลังส่งข้อมูลไปยัง Fal AI...");
         setTimeout(() => {
@@ -74,7 +78,6 @@ const Production: React.FC<ProductionProps> = ({
                  setIsCombining(false);
                  setCombineStatus("รวมวิดีโอสำเร็จ!");
                  setVideoReady(true);
-                 // alert("การรวมวิดีโอเสร็จสิ้น (จำลองการทำงาน)");
              }, 2000);
         }, 1500);
     }, 1500);
@@ -96,7 +99,7 @@ const Production: React.FC<ProductionProps> = ({
              </div>
          )}
          <h2 className="text-2xl font-bold text-white flex items-center gap-3 mb-4">
-            <Layers className="text-emerald-500" /> Production & Assembly
+            <Layers className="text-emerald-500" /> Production & Assembly: {project.name}
          </h2>
          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
              <div className="lg:col-span-2">
@@ -193,7 +196,7 @@ const Production: React.FC<ProductionProps> = ({
                       <input 
                          type="text" 
                          value={metadata?.title || ''}
-                         onChange={(e) => onUpdateMetadata({...metadata!, title: e.target.value})}
+                         onChange={(e) => updateMetadata('title', e.target.value)}
                          placeholder="AI Generated Title..."
                          className="w-full bg-slate-950 border border-slate-800 rounded-lg p-3 text-sm text-white focus:border-pink-500 outline-none"
                       />
@@ -204,7 +207,7 @@ const Production: React.FC<ProductionProps> = ({
                       </label>
                       <textarea 
                          value={metadata?.description || ''}
-                         onChange={(e) => onUpdateMetadata({...metadata!, description: e.target.value})}
+                         onChange={(e) => updateMetadata('description', e.target.value)}
                          placeholder="AI Generated Description..."
                          className="w-full bg-slate-950 border border-slate-800 rounded-lg p-3 text-sm text-white focus:border-pink-500 outline-none h-32 resize-none"
                       />
