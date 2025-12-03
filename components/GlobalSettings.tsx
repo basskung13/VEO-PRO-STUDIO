@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { ApiKey, UserProfile } from '../types';
-import { Key, Plus, Trash2, ExternalLink, User, Settings, Zap, Share2, Video, Sparkles, Clapperboard, Link } from 'lucide-react';
+import { Key, Plus, Trash2, ExternalLink, User, Settings, Zap, Share2, Video, Sparkles, Clapperboard, Edit2, Check, X } from 'lucide-react';
 
 interface GlobalSettingsProps {
   // Account Management Props
@@ -17,6 +17,7 @@ interface GlobalSettingsProps {
   activeUploadPostApiKeyId: string | null;
   onAddKey: (key: ApiKey) => void;
   onRemoveKey: (id: string) => void;
+  onUpdateKey: (id: string, updates: Partial<ApiKey>) => void;
   onSelectStoryKey: (id: string) => void;
   onSelectCharacterKey: (id: string) => void;
   onSelectProductionKey: (id: string) => void;
@@ -55,6 +56,7 @@ const GlobalSettings: React.FC<GlobalSettingsProps> = ({
   activeUploadPostApiKeyId,
   onAddKey,
   onRemoveKey,
+  onUpdateKey,
   onSelectStoryKey,
   onSelectCharacterKey,
   onSelectProductionKey,
@@ -63,6 +65,10 @@ const GlobalSettings: React.FC<GlobalSettingsProps> = ({
 }) => {
   const [newKeyName, setNewKeyName] = useState('');
   const [newKeyValue, setNewKeyValue] = useState('');
+  
+  // Edit State
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editName, setEditName] = useState('');
 
   const handleAddKey = () => {
     if (newKeyName.trim() && newKeyValue.trim()) {
@@ -82,6 +88,24 @@ const GlobalSettings: React.FC<GlobalSettingsProps> = ({
 
   const handleRemoveLastSlot = () => {
     if (activeSlotCount > 1) onUpdateSlotCount(activeSlotCount - 1);
+  };
+  
+  const startEditing = (key: ApiKey) => {
+      setEditingId(key.id);
+      setEditName(key.name);
+  };
+
+  const saveEdit = (id: string) => {
+      if(editName.trim()) {
+          onUpdateKey(id, { name: editName.trim() });
+      }
+      setEditingId(null);
+      setEditName('');
+  };
+
+  const cancelEdit = () => {
+      setEditingId(null);
+      setEditName('');
   };
 
   const activeAccounts = Array.from({ length: activeSlotCount }, (_, i) => i);
@@ -211,17 +235,34 @@ const GlobalSettings: React.FC<GlobalSettingsProps> = ({
                  if (activeProductionApiKeyId === key.id) usedIn.push("Metadata");
                  if (activeFalApiKeyId === key.id) usedIn.push("Fal");
                  if (activeUploadPostApiKeyId === key.id) usedIn.push("Upload");
+                 
+                 const isEditing = editingId === key.id;
 
                  return (
                     <div key={key.id} className="flex items-center justify-between bg-slate-900 border border-slate-800 p-3 rounded-lg hover:border-slate-700 transition-colors">
-                      <div className="flex items-center gap-3">
+                      <div className="flex items-center gap-3 flex-1">
                         <div className="bg-slate-800 p-2 rounded text-slate-400">
                           <Key size={16} />
                         </div>
-                        <div>
+                        <div className="flex-1">
                           <div className="flex items-center gap-2">
-                              <p className="text-sm font-bold text-white">{key.name}</p>
-                              {usedIn.length > 0 && (
+                              {isEditing ? (
+                                  <input 
+                                    autoFocus
+                                    type="text" 
+                                    value={editName}
+                                    onChange={(e) => setEditName(e.target.value)}
+                                    className="bg-slate-950 border border-slate-600 rounded px-2 py-0.5 text-sm text-white outline-none focus:border-emerald-500"
+                                    onKeyDown={(e) => {
+                                        if (e.key === 'Enter') saveEdit(key.id);
+                                        if (e.key === 'Escape') cancelEdit();
+                                    }}
+                                  />
+                              ) : (
+                                  <p className="text-sm font-bold text-white">{key.name}</p>
+                              )}
+                              
+                              {usedIn.length > 0 && !isEditing && (
                                   <div className="flex gap-1">
                                       {usedIn.map(u => (
                                           <span key={u} className="text-[9px] px-1.5 py-0.5 rounded bg-slate-800 border border-slate-700 text-slate-400">
@@ -231,34 +272,110 @@ const GlobalSettings: React.FC<GlobalSettingsProps> = ({
                                   </div>
                               )}
                           </div>
-                          <p className="text-[10px] text-slate-500 font-mono">
-                            {key.key.substring(0, 8)}...{key.key.substring(key.key.length - 4)}
-                          </p>
+                          {!isEditing && (
+                              <p className="text-[10px] text-slate-500 font-mono">
+                                {key.key.substring(0, 8)}...{key.key.substring(key.key.length - 4)}
+                              </p>
+                          )}
                         </div>
                       </div>
                       
-                      <button
-                        onClick={() => onRemoveKey(key.id)}
-                        className="p-2 text-slate-500 hover:text-red-400 hover:bg-red-900/20 rounded transition-colors"
-                        title="Remove Key"
-                      >
-                        <Trash2 size={16} />
-                      </button>
+                      <div className="flex items-center gap-2">
+                        {isEditing ? (
+                             <>
+                                <button
+                                    onClick={() => saveEdit(key.id)}
+                                    className="p-2 text-emerald-500 hover:bg-emerald-900/20 rounded transition-colors"
+                                    title="Save Name"
+                                >
+                                    <Check size={16} />
+                                </button>
+                                <button
+                                    onClick={cancelEdit}
+                                    className="p-2 text-slate-500 hover:text-white hover:bg-slate-800 rounded transition-colors"
+                                    title="Cancel"
+                                >
+                                    <X size={16} />
+                                </button>
+                             </>
+                        ) : (
+                             <>
+                                <button
+                                    onClick={() => startEditing(key)}
+                                    className="p-2 text-slate-500 hover:text-emerald-400 hover:bg-slate-800 rounded transition-colors"
+                                    title="Edit Name"
+                                >
+                                    <Edit2 size={16} />
+                                </button>
+                                <button
+                                    onClick={() => onRemoveKey(key.id)}
+                                    className="p-2 text-slate-500 hover:text-red-400 hover:bg-red-900/20 rounded transition-colors"
+                                    title="Remove Key"
+                                >
+                                    <Trash2 size={16} />
+                                </button>
+                             </>
+                        )}
+                      </div>
                     </div>
                  );
               })}
             </div>
 
-             {/* Quick Links Footer */}
-             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2">
-                 <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noreferrer" className="flex items-center gap-2 p-2 bg-slate-950 hover:bg-slate-900 rounded border border-slate-800 text-[10px] text-slate-400 hover:text-white transition-colors">
-                    <ExternalLink size={10}/> Get Gemini Key (Google AI Studio)
+             {/* Beautiful Resource Links */}
+             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-4 border-t border-slate-800 mt-4">
+                 <a 
+                    href="https://aistudio.google.com/app/apikey" 
+                    target="_blank" 
+                    rel="noreferrer" 
+                    className="flex flex-col gap-2 p-4 rounded-xl border border-blue-900/30 bg-gradient-to-br from-slate-900 to-blue-950/20 hover:from-slate-900 hover:to-blue-900/40 transition-all hover:scale-[1.02] hover:border-blue-500/50 group"
+                 >
+                    <div className="flex items-center justify-between">
+                        <div className="bg-blue-500/20 p-2 rounded-lg text-blue-400 group-hover:text-blue-300 transition-colors">
+                            <Sparkles size={20} />
+                        </div>
+                        <ExternalLink size={14} className="text-slate-600 group-hover:text-blue-400" />
+                    </div>
+                    <div>
+                        <h4 className="font-bold text-white text-sm">Get Gemini Key</h4>
+                        <p className="text-[10px] text-slate-400 mt-1">Google AI Studio</p>
+                    </div>
                  </a>
-                 <a href="https://fal.ai/dashboard" target="_blank" rel="noreferrer" className="flex items-center gap-2 p-2 bg-slate-950 hover:bg-slate-900 rounded border border-slate-800 text-[10px] text-slate-400 hover:text-white transition-colors">
-                    <ExternalLink size={10}/> Get Fal.ai Key (Video Gen)
+
+                 <a 
+                    href="https://fal.ai/dashboard/keys" 
+                    target="_blank" 
+                    rel="noreferrer" 
+                    className="flex flex-col gap-2 p-4 rounded-xl border border-indigo-900/30 bg-gradient-to-br from-slate-900 to-indigo-950/20 hover:from-slate-900 hover:to-indigo-900/40 transition-all hover:scale-[1.02] hover:border-indigo-500/50 group"
+                 >
+                    <div className="flex items-center justify-between">
+                        <div className="bg-indigo-500/20 p-2 rounded-lg text-indigo-400 group-hover:text-indigo-300 transition-colors">
+                            <Video size={20} />
+                        </div>
+                        <ExternalLink size={14} className="text-slate-600 group-hover:text-indigo-400" />
+                    </div>
+                    <div>
+                        <h4 className="font-bold text-white text-sm">Get Fal.ai Key</h4>
+                        <p className="text-[10px] text-slate-400 mt-1">Video Generation</p>
+                    </div>
                  </a>
-                 <a href="https://app.upload-post.com/api-keys" target="_blank" rel="noreferrer" className="flex items-center gap-2 p-2 bg-slate-950 hover:bg-slate-900 rounded border border-slate-800 text-[10px] text-slate-400 hover:text-white transition-colors">
-                    <ExternalLink size={10}/> Get Social Upload Key
+
+                 <a 
+                    href="https://app.upload-post.com/api-keys" 
+                    target="_blank" 
+                    rel="noreferrer" 
+                    className="flex flex-col gap-2 p-4 rounded-xl border border-orange-900/30 bg-gradient-to-br from-slate-900 to-orange-950/20 hover:from-slate-900 hover:to-orange-900/40 transition-all hover:scale-[1.02] hover:border-orange-500/50 group"
+                 >
+                    <div className="flex items-center justify-between">
+                        <div className="bg-orange-500/20 p-2 rounded-lg text-orange-400 group-hover:text-orange-300 transition-colors">
+                            <Share2 size={20} />
+                        </div>
+                        <ExternalLink size={14} className="text-slate-600 group-hover:text-orange-400" />
+                    </div>
+                    <div>
+                        <h4 className="font-bold text-white text-sm">Get Social Upload Key</h4>
+                        <p className="text-[10px] text-slate-400 mt-1">Upload-Post.com</p>
+                    </div>
                  </a>
             </div>
           </div>

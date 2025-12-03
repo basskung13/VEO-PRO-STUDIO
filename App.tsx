@@ -251,6 +251,10 @@ const App: React.FC = () => {
   const handleSignup = (username: string, password: string) => { if (username && password) { setLoggedInUser({ username }); setShowAuthScreen('none'); } else { alert("กรุณาใส่ชื่อผู้ใช้และรหัสผ่าน"); } };
   const handleLogout = () => { setLoggedInUser(null); setShowAuthScreen('login'); };
 
+  // Helper to update specific key details (like renaming)
+  const handleUpdateKey = (id: string, updates: Partial<ApiKey>) => {
+    setApiKeys(prev => prev.map(k => k.id === id ? { ...k, ...updates } : k));
+  };
 
   if (!isAuthCheckComplete) return <div className="min-h-screen bg-slate-950 flex items-center justify-center font-sans"><Loader2 size={48} className="animate-spin mb-4" /></div>;
   if (!loggedInUser) return <div className="min-h-screen bg-slate-950 flex items-center justify-center font-sans">{showAuthScreen === 'login' ? <LoginScreen onLogin={handleLogin} onSwitchToSignup={() => setShowAuthScreen('signup')} /> : <SignupScreen onSignup={handleSignup} onSwitchToLogin={() => setShowAuthScreen('login')} />}</div>;
@@ -353,6 +357,7 @@ const App: React.FC = () => {
               if (activeFalApiKeyId === id) setActiveFalApiKeyId(null);
               if (activeUploadPostApiKeyId === id) setActiveUploadPostApiKeyId(null);
             }}
+            onUpdateKey={handleUpdateKey}
             onSelectStoryKey={setActiveStoryApiKeyId}
             onSelectCharacterKey={setActiveCharacterApiKeyId}
             onSelectProductionKey={setActiveProductionApiKeyId}
