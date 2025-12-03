@@ -9,7 +9,11 @@
   },
   "dependencies": {
     "@google/genai": "^1.30.0",
+<<<<<<< Updated upstream
     "firebase": "^10.8.0",
+=======
+    "firebase": "^12.6.0",
+>>>>>>> Stashed changes
     "lucide-react": "^0.344.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
