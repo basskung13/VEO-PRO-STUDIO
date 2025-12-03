@@ -1,0 +1,43 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ฟังก์ชันตรวจสอบว่าเป็นเจ้าของข้อมูลหรือไม่
+    function isOwner(userId) {
+      return request.auth != null && request.auth.uid == userId;
+    }
+    
+    // ฟังก์ชันตรวจสอบว่าเป็น Admin หรือไม่
+    function isAdmin() {
+      return request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+
+    // 1. Users Collection: สมาชิกอ่าน/แก้ข้อมูลตัวเองได้, Admin ทำได้ทุกอย่าง
+    match /users/{userId} {
+      allow read: if isOwner(userId) || isAdmin();
+      allow write: if isOwner(userId) || isAdmin();
+    }
+
+    // 2. Projects: ใครสร้างคนนั้นเห็น (Owner Only)
+    match /projects/{projectId} {
+      allow read, write: if request.auth != null && (resource == null || resource.data.userId == request.auth.uid);
+    }
+
+    // 3. Characters: เหมือน Project
+    match /characters/{charId} {
+       allow read, write: if request.auth != null && (resource == null || resource.data.userId == request.auth.uid);
+       // หรือถ้าเก็บใน Subcollection: match /users/{userId}/characters/{charId} { allow read, write: if isOwner(userId); }
+    }
+    
+    // กรณีเก็บ Character เป็น Subcollection ของ Users
+    match /users/{userId}/characters/{charId} {
+    	allow read, write: if isOwner(userId);
+    }
+
+    // 4. Announcements: ทุกคนอ่านได้ แต่ Admin เท่านั้นที่เขียนได้
+    match /announcements/{announcementId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+  }
+}
