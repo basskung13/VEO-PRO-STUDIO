@@ -1,4 +1,5 @@
 
+
 import React, { useState, useEffect } from 'react';
 import { Character, CharacterAttributes, CustomOption, ApiKey } from '../types';
 import { generateCharacterImage, handleAistudioApiKeySelection } from '../services/geminiService';
@@ -130,9 +131,10 @@ const CharacterStudio: React.FC<CharacterStudioProps> = ({ characters, onSaveCha
 
   useEffect(() => {
     const checkAistudioKey = async () => {
-      if (window.aistudio && typeof window.aistudio.hasSelectedApiKey === 'function') {
+      // Cast window to any to avoid typescript errors with custom properties
+      if ((window as any).aistudio && typeof (window as any).aistudio.hasSelectedApiKey === 'function') {
         setAistudioAvailable(true);
-        const hasKey = await window.aistudio.hasSelectedApiKey();
+        const hasKey = await (window as any).aistudio.hasSelectedApiKey();
         setAistudioKeySelected(hasKey);
       } else {
         setAistudioAvailable(false);

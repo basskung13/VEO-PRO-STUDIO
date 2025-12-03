@@ -1,5 +1,4 @@
 
-
 export interface HistoryItem {
   id: string;
   originalPrompt: string;
@@ -187,6 +186,8 @@ export interface Project {
   metadata: VideoMetadata | null;
 }
 
-interface Window {
-  aistudio?: AIStudio;
+declare global {
+  interface Window {
+    aistudio?: AIStudio;
+  }
 }

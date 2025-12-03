@@ -1,3 +1,5 @@
+
+
 import { PromptConfig, Scene, Character, AspectRatio, VideoMetadata } from "../types";
 import { GoogleGenAI, GenerateContentResponse, Type } from "@google/genai"; // Import GenerateContentResponse for type safety
 
@@ -55,9 +57,10 @@ export const openGoogleAccountChooser = (authIndex: number, email?: string) => {
  */
 export const handleAistudioApiKeySelection = async (modelName: string): Promise<boolean> => {
   // Check if window.aistudio is available and has the necessary methods
-  if (window.aistudio && typeof window.aistudio.openSelectKey === 'function') {
+  // Cast window to any to avoid typescript errors with custom properties
+  if ((window as any).aistudio && typeof (window as any).aistudio.openSelectKey === 'function') {
     alert(`สำหรับ '${modelName}' คุณต้องเลือก API Key ที่ผูกกับการเรียกเก็บเงินแล้ว ผ่านหน้าต่าง 'ตั้งค่า API Key' ที่จะเปิดขึ้นมา`);
-    await window.aistudio.openSelectKey();
+    await (window as any).aistudio.openSelectKey();
     // Assuming success after openSelectKey() as per guidelines, no delay needed for race condition.
     return true;
   } else {

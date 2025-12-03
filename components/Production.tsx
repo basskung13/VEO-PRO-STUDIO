@@ -1,5 +1,7 @@
+
+
 import React, { useState } from 'react';
-import { Project, ApiKey } from '../types';
+import { Project, ApiKey, VideoMetadata } from '../types';
 import { generateVideoMetadata } from '../services/geminiService';
 import { Play, Download, Wand2, Hash, Type, FileText, Layers, Film, Loader2, AlertCircle, Save, Share2, Check } from 'lucide-react';
 
@@ -51,7 +53,7 @@ const Production: React.FC<ProductionProps> = ({
     }
   };
 
-  const updateMetadata = (key: keyof typeof metadata, value: any) => {
+  const updateMetadata = (key: any, value: any) => {
       if(!metadata) return;
       onUpdateProject({ 
           metadata: { ...metadata, [key]: value },
@@ -197,7 +199,7 @@ const Production: React.FC<ProductionProps> = ({
                          value={metadata?.title || ''}
                          onChange={(e) => updateMetadata('title', e.target.value)}
                          placeholder="AI Generated Title..."
-                         className="w-full bg-slate-950 border border-slate-800 rounded-lg p-3 text-sm text-white focus:border-pink-500 outline-none"
+                         className="w-full bg-slate-900 border border-slate-800 rounded-lg p-3 text-sm text-white focus:border-pink-500 outline-none"
                       />
                   </div>
                   <div>
@@ -208,7 +210,7 @@ const Production: React.FC<ProductionProps> = ({
                          value={metadata?.description || ''}
                          onChange={(e) => updateMetadata('description', e.target.value)}
                          placeholder="AI Generated Description..."
-                         className="w-full bg-slate-950 border border-slate-800 rounded-lg p-3 text-sm text-white focus:border-pink-500 outline-none h-32 resize-none"
+                         className="w-full bg-slate-900 border border-slate-800 rounded-lg p-3 text-sm text-white focus:border-pink-500 outline-none h-32 resize-none"
                       />
                   </div>
                   <div>

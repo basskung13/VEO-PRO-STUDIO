@@ -387,7 +387,7 @@ const App: React.FC = () => {
     if (!currentUser) {
         return <div className="min-h-screen bg-slate-950 flex items-center justify-center">
             {showSignup 
-                ? <SignupScreen onSignup={(u,p) => import('./contexts/AuthContext').then(m => {/* handled inside hook */})} onSwitchToSignup={() => setShowSignup(false)} />
+                ? <SignupScreen onSignup={(u,p) => import('./contexts/AuthContext').then(m => {/* handled inside hook */})} onSwitchToLogin={() => setShowSignup(false)} />
                 : <LoginScreen onLogin={(u,p) => {/* handled inside hook */}} onSwitchToSignup={() => setShowSignup(true)} />
             }
         </div>;
