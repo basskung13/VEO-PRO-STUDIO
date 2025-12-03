@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import AccountBar from './components/AccountBar';
 import VideoHistory from './components/VideoHistory';
@@ -51,6 +50,7 @@ const App: React.FC = () => {
   const [apiKeys, setApiKeys] = useState<ApiKey[]>([]);
   const [activeStoryApiKeyId, setActiveStoryApiKeyId] = useState<string | null>(null);
   const [activeCharacterApiKeyId, setActiveCharacterApiKeyId] = useState<string | null>(null);
+  const [activeProductionApiKeyId, setActiveProductionApiKeyId] = useState<string | null>(null);
   const [activeFalApiKeyId, setActiveFalApiKeyId] = useState<string | null>(null);
   const [activeUploadPostApiKeyId, setActiveUploadPostApiKeyId] = useState<string | null>(null);
 
@@ -74,6 +74,7 @@ const App: React.FC = () => {
       const savedApiKeys = localStorage.getItem('veo_api_keys');
       const savedActiveStoryKeyId = localStorage.getItem('veo_active_story_key_id');
       const savedActiveCharacterKeyId = localStorage.getItem('veo_active_character_key_id');
+      const savedActiveProductionKeyId = localStorage.getItem('veo_active_production_key_id');
       const savedActiveFalKeyId = localStorage.getItem('veo_active_fal_key_id');
       const savedActiveUploadPostKeyId = localStorage.getItem('veo_active_upload_post_key_id');
       const savedCharacters = localStorage.getItem('veo_characters');
@@ -88,6 +89,7 @@ const App: React.FC = () => {
       if (savedApiKeys) setApiKeys(JSON.parse(savedApiKeys));
       if (savedActiveStoryKeyId) setActiveStoryApiKeyId(savedActiveStoryKeyId);
       if (savedActiveCharacterKeyId) setActiveCharacterApiKeyId(savedActiveCharacterKeyId);
+      if (savedActiveProductionKeyId) setActiveProductionApiKeyId(savedActiveProductionKeyId);
       if (savedActiveFalKeyId) setActiveFalApiKeyId(savedActiveFalKeyId);
       if (savedActiveUploadPostKeyId) setActiveUploadPostApiKeyId(savedActiveUploadPostKeyId);
       if (savedCharacters) setCharacters(JSON.parse(savedCharacters));
@@ -127,10 +129,11 @@ const App: React.FC = () => {
   useEffect(() => { localStorage.setItem('veo_user_profiles', JSON.stringify(userProfiles)); }, [userProfiles]);
   useEffect(() => { localStorage.setItem('veo_active_slot_count', activeSlotCount.toString()); }, [activeSlotCount]);
   useEffect(() => { localStorage.setItem('veo_api_keys', JSON.stringify(apiKeys)); }, [apiKeys]);
-  useEffect(() => { if(activeStoryApiKeyId) localStorage.setItem('veo_active_story_key_id', activeStoryApiKeyId); }, [activeStoryApiKeyId]);
-  useEffect(() => { if(activeCharacterApiKeyId) localStorage.setItem('veo_active_character_key_id', activeCharacterApiKeyId); }, [activeCharacterApiKeyId]);
-  useEffect(() => { if(activeFalApiKeyId) localStorage.setItem('veo_active_fal_key_id', activeFalApiKeyId); }, [activeFalApiKeyId]);
-  useEffect(() => { if(activeUploadPostApiKeyId) localStorage.setItem('veo_active_upload_post_key_id', activeUploadPostApiKeyId); }, [activeUploadPostApiKeyId]);
+  useEffect(() => { if(activeStoryApiKeyId) localStorage.setItem('veo_active_story_key_id', activeStoryApiKeyId); else localStorage.removeItem('veo_active_story_key_id'); }, [activeStoryApiKeyId]);
+  useEffect(() => { if(activeCharacterApiKeyId) localStorage.setItem('veo_active_character_key_id', activeCharacterApiKeyId); else localStorage.removeItem('veo_active_character_key_id'); }, [activeCharacterApiKeyId]);
+  useEffect(() => { if(activeProductionApiKeyId) localStorage.setItem('veo_active_production_key_id', activeProductionApiKeyId); else localStorage.removeItem('veo_active_production_key_id'); }, [activeProductionApiKeyId]);
+  useEffect(() => { if(activeFalApiKeyId) localStorage.setItem('veo_active_fal_key_id', activeFalApiKeyId); else localStorage.removeItem('veo_active_fal_key_id'); }, [activeFalApiKeyId]);
+  useEffect(() => { if(activeUploadPostApiKeyId) localStorage.setItem('veo_active_upload_post_key_id', activeUploadPostApiKeyId); else localStorage.removeItem('veo_active_upload_post_key_id'); }, [activeUploadPostApiKeyId]);
   useEffect(() => { localStorage.setItem('veo_characters', JSON.stringify(characters)); }, [characters]);
   useEffect(() => { localStorage.setItem('veo_custom_options', JSON.stringify(customOptions)); }, [customOptions]);
   useEffect(() => { localStorage.setItem('veo_projects', JSON.stringify(projects)); }, [projects]);
@@ -240,6 +243,7 @@ const App: React.FC = () => {
 
   const activeStoryApiKeyObj = apiKeys.find(k => k.id === activeStoryApiKeyId) || null;
   const activeCharacterApiKeyObj = apiKeys.find(k => k.id === activeCharacterApiKeyId) || null;
+  const activeProductionApiKeyObj = apiKeys.find(k => k.id === activeProductionApiKeyId) || null;
   const activeFalApiKeyObj = apiKeys.find(k => k.id === activeFalApiKeyId) || null;
   const activeUploadPostApiKeyObj = apiKeys.find(k => k.id === activeUploadPostApiKeyId) || null;
   
@@ -314,8 +318,8 @@ const App: React.FC = () => {
       </nav>
 
       <main className="container mx-auto px-4 pt-6 flex flex-col items-center">
-        {/* VIEW ROUTING */}
-        {!activeProject && currentView !== 'settings' ? (
+        {/* DASHBOARD VIEW */}
+        {!activeProject && currentView !== 'settings' && (
           <ProjectDashboard 
             projects={projects}
             onCreateProject={createNewProject}
@@ -325,7 +329,10 @@ const App: React.FC = () => {
             }}
             onDeleteProject={deleteProject}
           />
-        ) : currentView === 'settings' ? (
+        )}
+        
+        {/* SETTINGS VIEW */}
+        {currentView === 'settings' && (
           <GlobalSettings
             userProfiles={userProfiles}
             onUpdateProfile={updateProfile}
@@ -334,6 +341,7 @@ const App: React.FC = () => {
             apiKeys={apiKeys}
             activeStoryApiKeyId={activeStoryApiKeyId}
             activeCharacterApiKeyId={activeCharacterApiKeyId}
+            activeProductionApiKeyId={activeProductionApiKeyId}
             activeFalApiKeyId={activeFalApiKeyId}
             activeUploadPostApiKeyId={activeUploadPostApiKeyId}
             onAddKey={(k) => setApiKeys(prev => [...prev, k])}
@@ -341,16 +349,23 @@ const App: React.FC = () => {
               setApiKeys(prev => prev.filter(k => k.id !== id));
               if (activeStoryApiKeyId === id) setActiveStoryApiKeyId(null);
               if (activeCharacterApiKeyId === id) setActiveCharacterApiKeyId(null);
+              if (activeProductionApiKeyId === id) setActiveProductionApiKeyId(null);
               if (activeFalApiKeyId === id) setActiveFalApiKeyId(null);
               if (activeUploadPostApiKeyId === id) setActiveUploadPostApiKeyId(null);
             }}
             onSelectStoryKey={setActiveStoryApiKeyId}
             onSelectCharacterKey={setActiveCharacterApiKeyId}
+            onSelectProductionKey={setActiveProductionApiKeyId}
             onSelectFalKey={setActiveFalApiKeyId}
             onSelectUploadPostKey={setActiveUploadPostApiKeyId}
           />
-        ) : currentView === 'characters' && activeProject ? (
-             <div className="w-full max-w-6xl">
+        )}
+
+        {/* ACTIVE PROJECT VIEWS (Persist State by Hiding instead of Unmounting) */}
+        {activeProject && (
+           <>
+             {/* Character Studio */}
+             <div className={`w-full max-w-6xl ${currentView === 'characters' ? 'block' : 'hidden'}`}>
                  <CharacterStudio 
                     characters={characters}
                     onSaveCharacter={(newChar) => {
@@ -369,57 +384,61 @@ const App: React.FC = () => {
                     onOpenApiKeyManager={() => setCurrentView('settings')}
                  />
              </div>
-        ) : currentView === 'production' && activeProject ? (
-            <div className="w-full max-w-7xl">
+
+             {/* Production */}
+             <div className={`w-full max-w-7xl ${currentView === 'production' ? 'block' : 'hidden'}`}>
                 <Production 
                    project={activeProject}
                    onUpdateProject={updateActiveProject}
-                   activeStoryApiKey={activeStoryApiKeyObj}
+                   activeProductionApiKey={activeProductionApiKeyObj}
                    activeFalApiKey={activeFalApiKeyObj}
                    onOpenApiKeyManager={() => setCurrentView('settings')}
                    onProceedToUpload={() => setCurrentView('upload')}
                 />
-            </div>
-        ) : currentView === 'upload' && activeProject ? (
-          <div className="w-full max-w-7xl">
-              <SocialUpload 
-                 project={activeProject}
-                 activeUploadPostApiKey={activeUploadPostApiKeyObj}
-                 onOpenApiKeyManager={() => setCurrentView('settings')}
-              />
-          </div>
-        ) : activeProject ? (
-            <>
-                <div className="w-full max-w-7xl bg-slate-900/80 border border-slate-800 rounded-2xl p-6 backdrop-blur-md shadow-2xl relative overflow-hidden transition-all duration-300 animate-fade-in">
-                {(accountUsage[currentAccountIndex] || 0) >= MAX_DAILY_COUNT && (
-                    <div className="absolute top-0 left-0 right-0 bg-red-500/10 border-b border-red-500/20 p-2 flex items-center justify-center gap-2 text-red-300 text-xs z-20">
-                        <AlertTriangle size={12} /> <span>โควต้าบัญชีนี้เต็มแล้ว ระบบจะสุ่มบัญชีใหม่ให้เมื่อคุณกดสร้าง</span>
+             </div>
+
+             {/* Social Upload */}
+             <div className={`w-full max-w-7xl ${currentView === 'upload' ? 'block' : 'hidden'}`}>
+                <SocialUpload 
+                   project={activeProject}
+                   activeUploadPostApiKey={activeUploadPostApiKeyObj}
+                   onOpenApiKeyManager={() => setCurrentView('settings')}
+                />
+             </div>
+
+             {/* Generator (Storyboard) */}
+             <div className={`w-full max-w-7xl ${currentView === 'generator' ? 'block' : 'hidden'}`}>
+                <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-6 backdrop-blur-md shadow-2xl relative overflow-hidden transition-all duration-300">
+                    {(accountUsage[currentAccountIndex] || 0) >= MAX_DAILY_COUNT && (
+                        <div className="absolute top-0 left-0 right-0 bg-red-500/10 border-b border-red-500/20 p-2 flex items-center justify-center gap-2 text-red-300 text-xs z-20">
+                            <AlertTriangle size={12} /> <span>โควต้าบัญชีนี้เต็มแล้ว ระบบจะสุ่มบัญชีใหม่ให้เมื่อคุณกดสร้าง</span>
+                        </div>
+                    )}
+                    <div className="flex justify-between items-center mb-6 relative z-10">
+                        <h2 className="text-2xl font-bold text-white flex items-center gap-3"><Sparkles className="text-emerald-500" /> Veo Storyboard Pro: {activeProject.name}</h2>
                     </div>
-                )}
-                <div className="flex justify-between items-center mb-6 relative z-10">
-                    <h2 className="text-2xl font-bold text-white flex items-center gap-3"><Sparkles className="text-emerald-500" /> Veo Storyboard Pro: {activeProject.name}</h2>
-                </div>
-                <div className="relative z-10">
-                    <PromptBuilder 
-                        project={activeProject}
-                        onUpdateProject={updateActiveProject}
-                        characters={characters}
-                        activeStoryApiKey={activeStoryApiKeyObj}
-                        onOpenApiKeyManager={() => setCurrentView('settings')}
-                        onGenerateSceneVideo={handleGenerateSceneVideo}
-                        onNavigateToCharacterStudio={() => setCurrentView('characters')}
-                        customOptions={customOptions}
-                        onAddCustomOption={handleAddCustomOption}
-                        onRemoveCustomOption={handleRemoveCustomOption}
-                        accountUsage={accountUsage}
-                        activeSlotCount={activeSlotCount}
-                        maxDailyCount={MAX_DAILY_COUNT}
-                    />
-                </div>
+                    <div className="relative z-10">
+                        <PromptBuilder 
+                            project={activeProject}
+                            onUpdateProject={updateActiveProject}
+                            characters={characters}
+                            activeStoryApiKey={activeStoryApiKeyObj}
+                            onOpenApiKeyManager={() => setCurrentView('settings')}
+                            onGenerateSceneVideo={handleGenerateSceneVideo}
+                            onNavigateToCharacterStudio={() => setCurrentView('characters')}
+                            customOptions={customOptions}
+                            onAddCustomOption={handleAddCustomOption}
+                            onRemoveCustomOption={handleRemoveCustomOption}
+                            accountUsage={accountUsage}
+                            activeSlotCount={activeSlotCount}
+                            maxDailyCount={MAX_DAILY_COUNT}
+                        />
+                    </div>
                 </div>
                 <VideoHistory items={history} onCopy={handleCopyOnly} />
-            </>
-        ) : null}
+             </div>
+           </>
+        )}
       </main>
     </div>
   );

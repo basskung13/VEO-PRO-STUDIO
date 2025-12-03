@@ -79,12 +79,13 @@ export const generateCharacterImage = async (prompt: string, characterApiKey: st
   try {
     const parts: any[] = [];
 
+    // Prompt refinements for FULL BODY and REFERENCE ADHERENCE
+    // We emphasize "Long Shot", "Wide Angle", "Head to Toe", "Feet visible" to ensure the full body is in frame
+    const fullBodyInstruction = "EXTREME WIDE SHOT (Full Body): The character must be fully visible from the top of the head to the bottom of the shoes. Zoom out significantly. Frame the character in the center with ample space around them to ensure no cropping of feet or head. The character should look far away.";
+
     // If a reference image is provided, add it to the parts
     if (referenceImageBase64) {
       // The model expects base64 data without the data URI prefix for inlineData
-      // But typically inlineData accepts the full base64 string if the library handles it, 
-      // however, standard pattern is usually just the data. 
-      // Let's strip the prefix if present.
       const base64Data = referenceImageBase64.replace(/^data:image\/(png|jpeg|jpg|webp);base64,/, "");
       
       parts.push({
@@ -95,11 +96,11 @@ export const generateCharacterImage = async (prompt: string, characterApiKey: st
       });
       
       parts.push({
-        text: `Using the provided image as a strict visual reference for the character's appearance (face, structure), apply the following attributes and style: ${prompt}. Generate a realistic, high-quality image. Full body shot, wide angle view showing the entire character from head to toe to visualize the full design in a scenic environment. Aspect ratio 1:1, image size 1K.`
+        text: `STRICT VISUAL REFERENCE: You MUST create a character that looks EXACTLY like the person in the reference image provided. Copy the facial features, hairstyle, body structure, and identity precisely. \n\nCONTEXT & OUTFIT: ${prompt}. \n\nCOMPOSITION: ${fullBodyInstruction} Generate a realistic, high-quality image. Aspect ratio 1:1, image size 1K.`
       });
     } else {
       parts.push({
-        text: `${prompt}. Generate a realistic, high-quality image. Full body shot, wide angle view, showing the entire character from head to toe, centered with margin around the character to ensure full visibility. Aspect ratio 1:1, image size 1K.`
+        text: `Generate a character based on this description: ${prompt}. \n\nCOMPOSITION: ${fullBodyInstruction} Generate a realistic, high-quality image. Aspect ratio 1:1, image size 1K.`
       });
     }
 

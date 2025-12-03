@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Project, ApiKey } from '../types';
 import { generateVideoMetadata } from '../services/geminiService';
@@ -7,7 +6,7 @@ import { Play, Download, Wand2, Hash, Type, FileText, Layers, Film, Loader2, Ale
 interface ProductionProps {
   project: Project;
   onUpdateProject: (updates: Partial<Project>) => void;
-  activeStoryApiKey: ApiKey | null;
+  activeProductionApiKey: ApiKey | null; // Changed from activeStoryApiKey
   activeFalApiKey: ApiKey | null;
   onOpenApiKeyManager: () => void;
   onProceedToUpload: () => void;
@@ -16,7 +15,7 @@ interface ProductionProps {
 const Production: React.FC<ProductionProps> = ({ 
   project,
   onUpdateProject,
-  activeStoryApiKey, 
+  activeProductionApiKey, 
   activeFalApiKey,
   onOpenApiKeyManager,
   onProceedToUpload
@@ -31,9 +30,9 @@ const Production: React.FC<ProductionProps> = ({
   const metadata = project.metadata;
 
   const handleGenerateMetadata = async () => {
-    if (!activeStoryApiKey?.key) {
+    if (!activeProductionApiKey?.key) {
       onOpenApiKeyManager();
-      alert("กรุณาตั้งค่า API Key (Story Key) ก่อนสร้าง Metadata");
+      alert("กรุณาตั้งค่า API Key สำหรับ Production Metadata (Production Key) ในเมนู Settings ก่อนสร้าง Metadata");
       return;
     }
     if (!plot && scenes.length === 0) {
@@ -43,7 +42,7 @@ const Production: React.FC<ProductionProps> = ({
 
     setIsGeneratingMetadata(true);
     try {
-      const result = await generateVideoMetadata(plot, scenes, activeStoryApiKey.key);
+      const result = await generateVideoMetadata(plot, scenes, activeProductionApiKey.key);
       onUpdateProject({ metadata: result, updatedAt: Date.now() });
     } catch (e: any) {
       alert("เกิดข้อผิดพลาดในการสร้าง Metadata: " + e.message);
