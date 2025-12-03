@@ -1,4 +1,3 @@
-
 export interface HistoryItem {
   id: string;
   originalPrompt: string;
@@ -184,10 +183,4 @@ export interface Project {
 
   // Output
   metadata: VideoMetadata | null;
-}
-
-declare global {
-  interface Window {
-    aistudio?: AIStudio;
-  }
 }
