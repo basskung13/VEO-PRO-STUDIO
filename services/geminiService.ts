@@ -1,6 +1,3 @@
-
-
-
 import { PromptConfig, Scene, Character, AspectRatio, VideoMetadata } from "../types";
 import { GoogleGenAI, GenerateContentResponse, Type } from "@google/genai"; // Import GenerateContentResponse for type safety
 
@@ -98,11 +95,11 @@ export const generateCharacterImage = async (prompt: string, characterApiKey: st
       });
       
       parts.push({
-        text: `Using the provided image as a strict visual reference for the character's appearance (face, structure), apply the following attributes and style: ${prompt}. Generate a realistic, high-quality image. Aspect ratio 1:1, image size 1K.`
+        text: `Using the provided image as a strict visual reference for the character's appearance (face, structure), apply the following attributes and style: ${prompt}. Generate a realistic, high-quality image. Full body shot, wide angle view showing the entire character from head to toe to visualize the full design in a scenic environment. Aspect ratio 1:1, image size 1K.`
       });
     } else {
       parts.push({
-        text: `${prompt}. Generate a realistic, high-quality image. Aspect ratio 1:1, image size 1K.`
+        text: `${prompt}. Generate a realistic, high-quality image. Full body shot, wide angle view, showing the entire character from head to toe, centered with margin around the character to ensure full visibility. Aspect ratio 1:1, image size 1K.`
       });
     }
 
