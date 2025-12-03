@@ -4,6 +4,7 @@
     "indexes": "firestore.indexes.json"
   },
   "hosting": {
+    "site": "veo-studio",
     "public": "dist",
     "ignore": [
       "firebase.json",
@@ -18,3 +19,4 @@
     ]
   }
 }
+
